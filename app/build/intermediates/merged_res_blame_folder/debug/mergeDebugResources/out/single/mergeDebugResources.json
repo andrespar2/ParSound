@@ -1,0 +1,22 @@
+[
+    {
+        "merged": "com.andrespar2.parsound.app-debug-80:/xml_parsound_widget_info.xml.flat",
+        "source": "com.andrespar2.parsound.app-main-82:/xml/parsound_widget_info.xml"
+    },
+    {
+        "merged": "com.andrespar2.parsound.app-debug-80:/mipmap-anydpi-v26_ic_launcher_round.xml.flat",
+        "source": "com.andrespar2.parsound.app-main-82:/mipmap-anydpi-v26/ic_launcher_round.xml"
+    },
+    {
+        "merged": "com.andrespar2.parsound.app-debug-80:/drawable_ic_launcher_foreground.xml.flat",
+        "source": "com.andrespar2.parsound.app-main-82:/drawable/ic_launcher_foreground.xml"
+    },
+    {
+        "merged": "com.andrespar2.parsound.app-debug-80:/mipmap-anydpi-v26_ic_launcher.xml.flat",
+        "source": "com.andrespar2.parsound.app-main-82:/mipmap-anydpi-v26/ic_launcher.xml"
+    },
+    {
+        "merged": "com.andrespar2.parsound.app-debug-80:/layout_widget_parsound.xml.flat",
+        "source": "com.andrespar2.parsound.app-main-82:/layout/widget_parsound.xml"
+    }
+]

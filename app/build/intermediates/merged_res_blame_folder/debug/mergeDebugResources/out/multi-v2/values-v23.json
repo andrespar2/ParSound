@@ -1,0 +1,36 @@
+{
+    "logs": [
+        {
+            "outputFile": "com.andrespar2.parsound.app-mergeDebugResources-78:/values-v23/values-v23.xml",
+            "map": [
+                {
+                    "source": "C:\\Users\\Usuario\\.gradle\\caches\\8.11.1\\transforms\\d5176b4bbb1982d8240e354fd5489c5b\\transformed\\work-runtime-2.9.1\\res\\values-v23\\values-v23.xml",
+                    "from": {
+                        "startLines": "2,3",
+                        "startColumns": "4,4",
+                        "startOffsets": "55,121",
+                        "endColumns": "65,62",
+                        "endOffsets": "116,179"
+                    }
+                },
+                {
+                    "source": "C:\\Users\\Usuario\\.gradle\\caches\\8.11.1\\transforms\\52951beb203960463b851d2e21e77b7b\\transformed\\glance-appwidget-1.1.0\\res\\values-v23\\values-v23.xml",
+                    "from": {
+                        "startLines": "2",
+                        "startColumns": "4",
+                        "startOffsets": "55",
+                        "endColumns": "55",
+                        "endOffsets": "106"
+                    },
+                    "to": {
+                        "startLines": "4",
+                        "startColumns": "4",
+                        "startOffsets": "184",
+                        "endColumns": "55",
+                        "endOffsets": "235"
+                    }
+                }
+            ]
+        }
+    ]
+}

@@ -70,7 +70,7 @@ goto fail
 :execute
 @rem Setup the command line
 
-set CLASSPATH=%APP_HOME%\lib\gradle-gradle-cli-main-8.11.1.jar
+set CLASSPATH=%APP_HOME%\lib\gradle-launcher-8.11.1.jar;%APP_HOME%\lib\*
 
 
 @rem Execute Gradle
@@ -92,4 +92,7 @@ exit /b %EXIT_CODE%
 if "%OS%"=="Windows_NT" endlocal
 
 :omega
+
+
+
 
