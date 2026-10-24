@@ -4,6 +4,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 
 private val DarkColorScheme = darkColorScheme(
@@ -30,15 +32,37 @@ private val LightColorScheme = lightColorScheme(
     onSurface = Color(0xFF202124),
 )
 
+private val AmoledColorScheme = darkColorScheme(
+    primary = Color(0xFF8AB4F8),
+    secondary = Color(0xFF9AA0A6),
+    tertiary = Color(0xFF81C995),
+    background = Color(0xFF000000),
+    surface = Color(0xFF000000),
+    onPrimary = Color(0xFF000000),
+    onSecondary = Color(0xFF000000),
+    onBackground = Color(0xFFE8EAED),
+    onSurface = Color(0xFFE8EAED),
+)
+
+val LocalGlassColors = staticCompositionLocalOf { PaletteExtractor.extract(null) }
+
 @Composable
 fun ParSoundTheme(
     darkTheme: Boolean = true,
+    amoledBlack: Boolean = false,
+    dynamicGlassColors: DynamicGlassColors = PaletteExtractor.extract(null),
     content: @Composable () -> Unit
 ) {
-    val colorScheme = if (darkTheme) DarkColorScheme else LightColorScheme
-    MaterialTheme(
-        colorScheme = colorScheme,
-        typography = Typography,
-        content = content
-    )
+    val colorScheme = when {
+        amoledBlack && darkTheme -> AmoledColorScheme
+        darkTheme -> DarkColorScheme
+        else -> LightColorScheme
+    }
+    CompositionLocalProvider(LocalGlassColors provides dynamicGlassColors) {
+        MaterialTheme(
+            colorScheme = colorScheme,
+            typography = Typography,
+            content = content
+        )
+    }
 }

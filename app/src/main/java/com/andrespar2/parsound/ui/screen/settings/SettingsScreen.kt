@@ -10,6 +10,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
@@ -32,7 +33,7 @@ fun SettingsScreen(navController: NavController) {
                 title = { Text("Ajustes") },
                 navigationIcon = {
                     IconButton(onClick = { navController.navigateUp() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Atr醩")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Atr谩s")
                     }
                 }
             )
@@ -44,7 +45,51 @@ fun SettingsScreen(navController: NavController) {
                 .padding(padding)
         ) {
             Text(
-                text = "Informaci髇",
+                text = "Apariencia",
+                modifier = Modifier.padding(16.dp)
+            )
+            ListItem(
+                headlineContent = { Text("Tema oscuro") },
+                supportingContent = { Text("Predeterminado activo") }
+            )
+            ListItem(
+                headlineContent = { Text("Modo AMOLED completamente negro") },
+                supportingContent = { Text("Disponible en ajustes avanzados") }
+            )
+            ListItem(
+                headlineContent = { Text("Colores adaptativos de portada") },
+                supportingContent = { Text("Liquid Glass adaptable") }
+            )
+            HorizontalDivider()
+            Text(
+                text = "Reproducci贸n",
+                modifier = Modifier.padding(16.dp)
+            )
+            ListItem(
+                headlineContent = { Text("Crossfade configurable") },
+                supportingContent = { Text("Desactivado / 1s / 2s / 3s / 5s / 8s / 10s / 12s") }
+            )
+            ListItem(
+                headlineContent = { Text("Temporizador de apagado") },
+                supportingContent = { Text("Disponible pr贸ximamente") }
+            )
+            HorizontalDivider()
+            Text(
+                text = "Descargas",
+                modifier = Modifier.padding(16.dp)
+            )
+            ListItem(
+                headlineContent = { Text("Descargar m煤sica gratis") },
+                supportingContent = { Text("Abrir repositorio ParDL en GitHub (proyecto externo)") },
+                trailingContent = { Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null) },
+                modifier = Modifier.clickable {
+                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/andrespar2/ParDL"))
+                    context.startActivity(intent)
+                }
+            )
+            HorizontalDivider()
+            Text(
+                text = "Informaci贸n",
                 modifier = Modifier.padding(16.dp)
             )
             ListItem(
@@ -52,17 +97,8 @@ fun SettingsScreen(navController: NavController) {
                 supportingContent = { Text("Desarrollado por andrespar2") }
             )
             ListItem(
-                headlineContent = { Text("Versi髇") },
+                headlineContent = { Text("Versi贸n") },
                 supportingContent = { Text("1.0.0") }
-            )
-            ListItem(
-                headlineContent = { Text("Descargar m鷖ica gratis") },
-                supportingContent = { Text("Abrir repositorio ParDL en GitHub") },
-                trailingContent = { Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null) },
-                modifier = Modifier.clickable {
-                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/andrespar2/ParDL"))
-                    context.startActivity(intent)
-                }
             )
             ListItem(
                 headlineContent = { Text("Repositorio ParSound") },

@@ -16,5 +16,6 @@ data class SongEntity(
     val trackNumber: Int = 0,
     val year: Int? = null,
     val genre: String? = null,
-    val folderUri: String = ""
+    val folderUri: String = "",
+    val isFavorite: Boolean = false
 )

@@ -21,7 +21,7 @@ object DatabaseModule {
             context,
             ParSoundDatabase::class.java,
             "parsound_db"
-        ).build()
+        ).fallbackToDestructiveMigration().build()
     }
 
     @Provides

@@ -86,7 +86,7 @@ done
 # shellcheck disable=SC2034
 APP_BASE_NAME=${0##*/}
 # Discard cd standard output in case $CDPATH is set (https://github.com/gradle/gradle/issues/25036)
-APP_HOME=$( cd -P "${APP_HOME:-./}.." > /dev/null && printf '%s
+APP_HOME=$( cd -P "${APP_HOME:-./}" > /dev/null && printf '%s
 ' "$PWD" ) || exit
 
 # Use the maximum available, or set MAX_FD != -1 to use that value.
@@ -115,7 +115,7 @@ case "$( uname )" in                #(
   NONSTOP* )        nonstop=true ;;
 esac
 
-CLASSPATH=$APP_HOME/lib/gradle-launcher-8.11.1.jar:$APP_HOME/lib/*
+CLASSPATH=$APP_HOME/gradle/wrapper/gradle-wrapper.jar
 
 
 # Determine the Java command to use to start the JVM.
@@ -203,7 +203,7 @@ fi
 
 
 # Add default JVM options here. You can also use JAVA_OPTS and GRADLE_OPTS to pass JVM options to this script.
-DEFAULT_JVM_OPTS='"-Xmx64m" "-Xms64m"'" \"
+DEFAULT_JVM_OPTS='"-Xmx64m" "-Xms64m"'
 
 # Collect all arguments for the java command:
 #   * DEFAULT_JVM_OPTS, JAVA_OPTS, JAVA_OPTS, and optsEnvironmentVar are not allowed to contain shell fragments,
@@ -214,7 +214,7 @@ DEFAULT_JVM_OPTS='"-Xmx64m" "-Xms64m"'" \"
 set -- \
         "-Dorg.gradle.appname=$APP_BASE_NAME" \
         -classpath "$CLASSPATH" \
-        org.gradle.launcher.GradleMain \
+        org.gradle.wrapper.GradleWrapperMain \
         "$@"
 
 # Stop when "xargs" is not available.
@@ -250,6 +250,3 @@ eval "set -- $(
     )" '"$@"'
 
 exec "$JAVACMD" "$@"
-
-
-
