@@ -1,7 +1,7 @@
 package com.andrespar2.parsound.di
 
 import android.content.Context
-import androidx.media3.exoplayer.ExoPlayer
+import com.andrespar2.parsound.player.CrossfadePlayer
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -14,9 +14,6 @@ import javax.inject.Singleton
 object PlayerModule {
     @Provides
     @Singleton
-    fun provideExoPlayer(@ApplicationContext context: Context): ExoPlayer {
-        return ExoPlayer.Builder(context)
-            .setHandleAudioBecomingNoisy(true)
-            .build()
-    }
+    fun provideCrossfadePlayer(@ApplicationContext context: Context): CrossfadePlayer =
+        CrossfadePlayer(context)
 }
