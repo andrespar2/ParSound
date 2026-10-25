@@ -1,49 +1,68 @@
 package com.andrespar2.parsound.ui.screen.search
 
-import android.content.Context
-import android.content.Intent
-import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.andrespar2.parsound.data.local.SongDao
+import com.andrespar2.parsound.data.local.AlbumSummary
+import com.andrespar2.parsound.data.local.ArtistSummary
 import com.andrespar2.parsound.data.local.SongEntity
+import com.andrespar2.parsound.data.repo.MusicRepository
 import com.andrespar2.parsound.player.PlayerManager
-import com.andrespar2.parsound.service.PlaybackService
 import dagger.hilt.android.lifecycle.HiltViewModel
-import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+@OptIn(ExperimentalCoroutinesApi::class, FlowPreview::class)
 @HiltViewModel
 class SearchViewModel @Inject constructor(
-    private val songDao: SongDao,
-    private val playerManager: PlayerManager,
-    @ApplicationContext private val context: Context
+    private val repository: MusicRepository,
+    private val playerManager: PlayerManager
 ) : ViewModel() {
-    private val _query = MutableStateFlow("")
-    val query: StateFlow<String> = _query.asStateFlow()
+    val query = MutableStateFlow("")
 
-    val results = _query.flatMapLatest { q ->
-        if (q.isBlank()) flowOf(emptyList()) else songDao.search(q)
-    }.stateInScope(emptyList())
+    val results: StateFlow<List<SongEntity>> = query
+        .debounce(180)
+        .distinctUntilChanged()
+        .flatMapLatest { text ->
+            if (text.isBlank()) flowOf(emptyList()) else repository.search(text.trim())
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    private fun <T> kotlinx.coroutines.flow.Flow<T>.stateInScope(initial: T) =
-        this.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), initial)
+    val albumResults: StateFlow<List<AlbumSummary>> = combine(repository.albums, query) { albums, text ->
+        if (text.isBlank()) emptyList()
+        else albums.filter {
+            it.album.contains(text, true) || it.artist.contains(text, true)
+        }.take(8)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    fun setQuery(q: String) {
-        _query.value = q
-    }
+    val artistResults: StateFlow<List<ArtistSummary>> = combine(repository.artists, query) { artists, text ->
+        if (text.isBlank()) emptyList()
+        else artists.filter { it.artist.contains(text, true) }.take(8)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    fun play(song: SongEntity, queueList: List<SongEntity>) {
-        val intent = Intent(context, PlaybackService::class.java)
-        ContextCompat.startForegroundService(context, intent)
-        playerManager.playSong(song, queueList)
+    val favoriteIds: StateFlow<Set<Long>> = repository.favoriteIds
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptySet())
+    val currentSong = playerManager.currentSong
+    val isPlaying = playerManager.isPlaying
+
+    fun setQuery(value: String) { query.value = value }
+
+    fun play(song: SongEntity, list: List<SongEntity>) = playerManager.playSong(song, list)
+
+    fun toggleFavorite(song: SongEntity) {
+        viewModelScope.launch {
+            repository.setFavorite(song.id, !favoriteIds.value.contains(song.id))
+            playerManager.refreshCurrentSong()
+        }
     }
 }

@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">ParSound</string>
+    <string name="widget_description">Controles de ParSound en tu pantalla de inicio</string>
+    <string name="notification_channel_name">Reproducción de ParSound</string>
 </resources>
