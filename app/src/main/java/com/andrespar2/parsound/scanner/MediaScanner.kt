@@ -2,6 +2,7 @@ package com.andrespar2.parsound.scanner
 
 import android.content.Context
 import android.net.Uri
+import android.os.Build
 import android.provider.MediaStore
 import com.andrespar2.parsound.data.local.SongDao
 import com.andrespar2.parsound.data.local.SongEntity
@@ -18,18 +19,20 @@ class MediaScanner @Inject constructor(
 ) {
     suspend fun scan() = withContext(Dispatchers.IO) {
         val songs = mutableListOf<SongEntity>()
-        val projection = arrayOf(
-            MediaStore.Audio.Media._ID,
-            MediaStore.Audio.Media.TITLE,
-            MediaStore.Audio.Media.ARTIST,
-            MediaStore.Audio.Media.ALBUM,
-            MediaStore.Audio.Media.ALBUM_ID,
-            MediaStore.Audio.Media.DURATION,
-            MediaStore.Audio.Media.TRACK,
-            MediaStore.Audio.Media.YEAR,
-            MediaStore.Audio.Media.GENRE,
-            MediaStore.Audio.Media.DATA
-        )
+        // MediaStore.Audio.Media.GENRE solo existe desde Android 11 (API 30).
+        val supportsGenre = Build.VERSION.SDK_INT >= Build.VERSION_CODES.R
+        val projection = buildList {
+            add(MediaStore.Audio.Media._ID)
+            add(MediaStore.Audio.Media.TITLE)
+            add(MediaStore.Audio.Media.ARTIST)
+            add(MediaStore.Audio.Media.ALBUM)
+            add(MediaStore.Audio.Media.ALBUM_ID)
+            add(MediaStore.Audio.Media.DURATION)
+            add(MediaStore.Audio.Media.TRACK)
+            add(MediaStore.Audio.Media.YEAR)
+            if (supportsGenre) add(MediaStore.Audio.Media.GENRE)
+            add(MediaStore.Audio.Media.DATA)
+        }.toTypedArray()
         val selection = "${MediaStore.Audio.Media.IS_MUSIC} != 0"
         context.contentResolver.query(
             MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
@@ -46,7 +49,7 @@ class MediaScanner @Inject constructor(
             val durationCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DURATION)
             val trackCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.TRACK)
             val yearCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.YEAR)
-            val genreCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.GENRE)
+            val genreCol = if (supportsGenre) cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.GENRE) else -1
             while (cursor.moveToNext()) {
                 val id = cursor.getLong(idCol)
                 val contentUri = Uri.withAppendedPath(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, id.toString())
@@ -63,7 +66,7 @@ class MediaScanner @Inject constructor(
                         albumArtUri = albumArtUri,
                         trackNumber = cursor.getInt(trackCol) % 1000,
                         year = if (cursor.isNull(yearCol)) null else cursor.getInt(yearCol),
-                        genre = if (cursor.isNull(genreCol)) null else cursor.getString(genreCol)
+                        genre = if (genreCol >= 0 && !cursor.isNull(genreCol)) cursor.getString(genreCol) else null
                     )
                 )
             }
