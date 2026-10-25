@@ -1,14 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
+    <!-- Símbolo único: P cuya contraforma es un botón de reproducción. -->
     <path
-        android:fillColor="#8AB4F8"
-        android:fillAlpha="0.9"
-        android:pathData="M38,30L38,78L68,54Z"/>
+        android:fillType="evenOdd"
+        android:pathData="M39,30 L55,30 C69,30 77,37.5 77,48 C77,58.5 69,66 55,66 L49,66 L49,80 C49,82.2 47.2,84 45,84 L41,84 C38.8,84 37,82.2 37,80 L37,34 C37,31.8 37.8,30 39,30 Z M49,39 L49,57 L60,48 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="linear"
+                android:startX="37"
+                android:startY="30"
+                android:endX="77"
+                android:endY="84"
+                android:startColor="#FFFFFFFF"
+                android:centerColor="#F2F7FF"
+                android:endColor="#CFE2FF" />
+        </aapt:attr>
+    </path>
     <path
-        android:fillColor="#E8EAED"
-        android:fillAlpha="0.7"
-        android:pathData="M42,36L42,72L62,54Z"/>
+        android:pathData="M49.5,39.5 L49.5,56.5"
+        android:strokeColor="#801C3A63"
+        android:strokeWidth="0.7"
+        android:strokeLineCap="round" />
 </vector>
