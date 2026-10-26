@@ -1,6 +1,8 @@
 package com.andrespar2.parsound.player
 
 import android.content.Context
+import android.media.AudioFocusRequest
+import android.media.AudioManager
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
@@ -57,6 +59,54 @@ class CrossfadePlayer(context: Context) : SimpleBasePlayer(Looper.getMainLooper(
     private var latestAudioSessionId = 0
     private var audioSessionListener: ((Int) -> Unit)? = null
     private var stateListener: (() -> Unit)? = null
+    private var playlistSwapPending = false
+    private var swapPreviousItems: List<MediaItem> = emptyList()
+    private var swapPreviousIndex = 0
+
+    private val audioManager =
+        appContext.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+    private var focusRequest: AudioFocusRequest? = null
+    private var hasAudioFocus = false
+    private var resumeOnFocusGain = false
+
+    private val audioFocusListener = AudioManager.OnAudioFocusChangeListener { change ->
+        handler.post {
+            when (change) {
+                AudioManager.AUDIOFOCUS_GAIN -> {
+                    hasAudioFocus = true
+                    if (resumeOnFocusGain) {
+                        resumeOnFocusGain = false
+                        playWhenReadyState = true
+                        if (crossfading && fadeInIndex in engines.indices) {
+                            engines[fadeInIndex].play()
+                        } else {
+                            currentEngine().play()
+                        }
+                        applyVolumes()
+                    }
+                    stateListener?.invoke()
+                    invalidateState()
+                }
+                AudioManager.AUDIOFOCUS_LOSS_TRANSIENT,
+                AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK -> {
+                    resumeOnFocusGain = playWhenReadyState
+                    hasAudioFocus = false
+                    playWhenReadyState = false
+                    engines.forEach { it.pause() }
+                    stateListener?.invoke()
+                    invalidateState()
+                }
+                AudioManager.AUDIOFOCUS_LOSS -> {
+                    resumeOnFocusGain = false
+                    hasAudioFocus = false
+                    playWhenReadyState = false
+                    engines.forEach { it.pause() }
+                    stateListener?.invoke()
+                    invalidateState()
+                }
+            }
+        }
+    }
 
     private val ticker = object : Runnable {
         override fun run() {
@@ -98,7 +148,9 @@ class CrossfadePlayer(context: Context) : SimpleBasePlayer(Looper.getMainLooper(
         }
 
         override fun onPlayerError(error: PlaybackException) {
-            if (crossfading && incomingEngine >= 0 && currentEngine() === engines[incomingEngine]) {
+            val incoming = engines.getOrNull(incomingEngine)
+            if (crossfading && incoming != null && incoming.playerError != null) {
+                debug("crossfade incoming error -> keep active")
                 cancelCrossfadeKeepActive()
                 stateListener?.invoke()
                 invalidateState()
@@ -106,6 +158,8 @@ class CrossfadePlayer(context: Context) : SimpleBasePlayer(Looper.getMainLooper(
             }
             lastError = error
             playWhenReadyState = false
+            engines.forEach { it.pause() }
+            abandonAudioFocus()
             stateListener?.invoke()
             invalidateState()
         }
@@ -124,7 +178,7 @@ class CrossfadePlayer(context: Context) : SimpleBasePlayer(Looper.getMainLooper(
                     .setUsage(C.USAGE_MEDIA)
                     .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
                     .build(),
-                true
+                false
             )
             engine.setHandleAudioBecomingNoisy(true)
             engine.volume = 0f
@@ -147,6 +201,32 @@ class CrossfadePlayer(context: Context) : SimpleBasePlayer(Looper.getMainLooper(
         crossfadeMs = value.coerceIn(0, 12_000)
     }
 
+    fun crossfadeMillis(): Int = crossfadeMs
+
+    private fun requestAudioFocus(): Boolean {
+        if (hasAudioFocus) return true
+        val request = focusRequest ?: AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
+            .setAudioAttributes(
+                android.media.AudioAttributes.Builder()
+                    .setUsage(android.media.AudioAttributes.USAGE_MEDIA)
+                    .setContentType(android.media.AudioAttributes.CONTENT_TYPE_MUSIC)
+                    .build()
+            )
+            .setOnAudioFocusChangeListener(audioFocusListener)
+            .setWillPauseWhenDucked(true)
+            .build()
+            .also { focusRequest = it }
+        val result = audioManager.requestAudioFocus(request)
+        hasAudioFocus = result == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
+        return hasAudioFocus
+    }
+
+    private fun abandonAudioFocus() {
+        focusRequest?.let { runCatching { audioManager.abandonAudioFocusRequest(it) } }
+        hasAudioFocus = false
+        resumeOnFocusGain = false
+    }
+
     fun setPauseOnDisconnect(enabled: Boolean) {
         engines.forEach { it.setHandleAudioBecomingNoisy(enabled) }
     }
@@ -165,6 +245,59 @@ class CrossfadePlayer(context: Context) : SimpleBasePlayer(Looper.getMainLooper(
         val next = nextIndex()
         if (next < 0) return
         goToIndex(next, 0, if (forceCrossfade) crossfadeMs else 0)
+    }
+
+    fun skipNextWithFade() {
+        val next = nextIndex()
+        debug("skipNext next=$next from=$currentIndex")
+        if (next >= 0) {
+            goToIndex(next, 0, crossfadeMs)
+        }
+    }
+
+    fun skipPreviousWithFade() {
+        if (items.isEmpty()) return
+        if (currentEngine().currentPosition > 3_000) {
+            currentEngine().seekTo(0)
+            invalidateState()
+            return
+        }
+        val previous = when {
+            currentIndex > 0 -> currentIndex - 1
+            repeatModeState == Player.REPEAT_MODE_ALL -> items.lastIndex
+            else -> -1
+        }
+        debug("skipPrevious previous=$previous from=$currentIndex")
+        if (previous >= 0) goToIndex(previous, 0, crossfadeMs)
+        else currentEngine().seekTo(0)
+    }
+
+    /**
+     * Cambia a una lista nueva mientras suena la pista actual, usando el
+     * segundo motor para solapar la canción elegida con la anterior.
+     */
+    fun crossfadeToMediaItems(
+        mediaItems: List<MediaItem>,
+        startIndex: Int,
+        fadeMillis: Int
+    ): Boolean {
+        if (released || mediaItems.isEmpty()) return false
+        if (fadeMillis <= 0 || !playWhenReadyState || !currentEngine().isPlaying) return false
+        val targetIndex = startIndex.coerceIn(mediaItems.indices)
+        val currentId = items.getOrNull(currentIndex)?.mediaId
+        if (currentId != null && currentId == mediaItems[targetIndex].mediaId) return false
+        if (crossfading) finishCrossfade()
+        swapPreviousItems = items
+        swapPreviousIndex = currentIndex
+        items = mediaItems
+        itemData = buildItemData(items)
+        currentIndex = targetIndex
+        pendingCrossfadeIndex = targetIndex
+        playlistSwapPending = true
+        debug("queue crossfade target=$targetIndex tracks=${mediaItems.size} fade=$fadeMillis")
+        beginCrossfade(targetIndex)
+        invalidateState()
+        return true
     }
 
     fun restartCurrentWithFade() {
@@ -240,10 +373,18 @@ class CrossfadePlayer(context: Context) : SimpleBasePlayer(Looper.getMainLooper(
     override fun handleSetPlayWhenReady(playWhenReady: Boolean): ListenableFuture<*> {
         if (released) return Futures.immediateVoidFuture()
         if (crossfading && !playWhenReady) finishCrossfade()
+        if (playWhenReady && !requestAudioFocus()) {
+            playWhenReadyState = false
+            stateListener?.invoke()
+            invalidateState()
+            return Futures.immediateVoidFuture()
+        }
         playWhenReadyState = playWhenReady
         if (playWhenReady) {
+            resumeOnFocusGain = false
             if (items.isEmpty()) {
                 playWhenReadyState = false
+                abandonAudioFocus()
                 return Futures.immediateVoidFuture()
             }
             lastError = null
@@ -255,6 +396,7 @@ class CrossfadePlayer(context: Context) : SimpleBasePlayer(Looper.getMainLooper(
             startTicker()
         } else {
             engines.forEach { it.pause() }
+            abandonAudioFocus()
             persistPosition()
         }
         invalidateState()
@@ -271,6 +413,7 @@ class CrossfadePlayer(context: Context) : SimpleBasePlayer(Looper.getMainLooper(
         playWhenReadyState = false
         crossfading = false
         incomingEngine = -1
+        playlistSwapPending = false
         cancelFadeCallbacks()
         engines.forEach {
             it.pause()
@@ -278,6 +421,7 @@ class CrossfadePlayer(context: Context) : SimpleBasePlayer(Looper.getMainLooper(
         }
         currentEngine().volume = volumeState
         prepared = false
+        abandonAudioFocus()
         invalidateState()
         return Futures.immediateVoidFuture()
     }
@@ -286,6 +430,7 @@ class CrossfadePlayer(context: Context) : SimpleBasePlayer(Looper.getMainLooper(
         released = true
         handler.removeCallbacks(ticker)
         cancelFadeCallbacks()
+        abandonAudioFocus()
         engines.forEach {
             runCatching { it.release() }
         }
@@ -344,6 +489,7 @@ class CrossfadePlayer(context: Context) : SimpleBasePlayer(Looper.getMainLooper(
         crossfading = false
         incomingEngine = -1
         preShuffleItems = null
+        playlistSwapPending = false
         items = mediaItems
         itemData = buildItemData(items)
         currentIndex = if (items.isEmpty()) 0 else startIndex.coerceIn(items.indices)
@@ -495,6 +641,7 @@ class CrossfadePlayer(context: Context) : SimpleBasePlayer(Looper.getMainLooper(
 
     private fun beginCrossfade(targetIndex: Int) {
         if (crossfading || targetIndex !in items.indices) return
+        debug("begin target=$targetIndex from=$currentIndex fade=$crossfadeMs")
         val target = items[targetIndex]
         val engine = engines[1 - activeEngine]
         pendingCrossfadeIndex = targetIndex
@@ -559,8 +706,15 @@ class CrossfadePlayer(context: Context) : SimpleBasePlayer(Looper.getMainLooper(
         fadeInIndex = -1
     }
 
+    private fun debug(message: String) {
+        if (com.andrespar2.parsound.BuildConfig.DEBUG) {
+            android.util.Log.i("ParSoundXFade", message)
+        }
+    }
+
     private fun finishCrossfade() {
         if (!crossfading) return
+        debug("finish active=$incomingEngine index=$currentIndex")
         val incomingIdx = incomingEngine
         cancelFadeCallbacks()
         val old = engines[activeEngine]
@@ -573,6 +727,7 @@ class CrossfadePlayer(context: Context) : SimpleBasePlayer(Looper.getMainLooper(
         }
         incomingEngine = -1
         crossfading = false
+        playlistSwapPending = false
         prepared = true
         stateListener?.invoke()
         invalidateState()
@@ -584,6 +739,12 @@ class CrossfadePlayer(context: Context) : SimpleBasePlayer(Looper.getMainLooper(
         if (incomingIdx in engines.indices) {
             engines[incomingIdx].pause()
             engines[incomingIdx].volume = 0f
+        }
+        if (playlistSwapPending && swapPreviousItems.isNotEmpty()) {
+            items = swapPreviousItems
+            itemData = buildItemData(items)
+            currentIndex = swapPreviousIndex.coerceIn(items.indices)
+            playlistSwapPending = false
         }
         incomingEngine = -1
         crossfading = false
@@ -606,6 +767,7 @@ class CrossfadePlayer(context: Context) : SimpleBasePlayer(Looper.getMainLooper(
             goToIndex(next, 0, crossfadeMs)
         } else {
             playWhenReadyState = false
+            abandonAudioFocus()
             stateListener?.invoke()
             invalidateState()
         }

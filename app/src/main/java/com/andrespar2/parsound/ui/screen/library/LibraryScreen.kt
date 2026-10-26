@@ -263,7 +263,7 @@ fun LibraryScreen(
                 title = "Biblioteca",
                 subtitle = buildString {
                     append(songsLabel(songs.size))
-                    if (configuredFolders.isNotEmpty()) append(" · ${configuredFolders.size} carpetas")
+                    if (configuredFolders.isNotEmpty()) append(" · ${foldersLabel(configuredFolders.size)}")
                 },
                 actions = {
                     Box {

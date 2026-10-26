@@ -25,6 +25,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -77,6 +78,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -99,6 +101,7 @@ import com.andrespar2.parsound.data.lyrics.Lyrics
 import com.andrespar2.parsound.ui.components.AmbientBackground
 import com.andrespar2.parsound.ui.components.CoverArt
 import com.andrespar2.parsound.ui.components.EmptyState
+import com.andrespar2.parsound.ui.components.glassModifier
 import com.andrespar2.parsound.ui.components.GlassIconButton
 import com.andrespar2.parsound.ui.components.SongOptionsSheet
 import com.andrespar2.parsound.ui.navigation.Routes
@@ -157,24 +160,14 @@ fun PlayerScreen(
 
     AmbientBackground(artworkUri = song?.artworkUri) {
         BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
-            val compactHeight = maxHeight < 700.dp
-            val coverSize = minOf(
-                maxWidth - 56.dp,
-                maxHeight * if (compactHeight) 0.30f else 0.38f
-            )
-                .coerceAtLeast(110.dp)
-                .coerceAtMost(340.dp)
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .verticalScroll(rememberScrollState())
-                    .navigationBarsPadding()
-            ) {
+            val compact = maxHeight < 640.dp
+            val veryCompact = maxHeight < 520.dp
+            Column(modifier = Modifier.fillMaxSize()) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .statusBarsPadding()
-                        .padding(horizontal = 12.dp, vertical = 6.dp),
+                        .padding(horizontal = 12.dp, vertical = 4.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     GlassIconButton(Icons.Default.KeyboardArrowDown, "Cerrar reproductor") {
@@ -200,144 +193,207 @@ fun PlayerScreen(
                     }
                 }
 
-                Spacer(Modifier.height(10.dp))
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 28.dp),
-                    contentAlignment = Alignment.Center
+                        .weight(1f)
                 ) {
-                    Box(
-                        modifier = Modifier.graphicsLayer {
-                            scaleX = coverScale
-                            scaleY = coverScale
+                    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+                        val canShowLyrics = lyrics.lines.isNotEmpty() && maxHeight >= 260.dp
+                        val expandedLyrics = canShowLyrics && maxHeight >= 520.dp
+                        val coverFraction = if (canShowLyrics) {
+                            if (expandedLyrics) 0.62f else 0.68f
+                        } else {
+                            0.88f
                         }
-                    ) {
-                        CoverArt(
-                            artworkUri = song?.artworkUri,
-                            size = coverSize,
-                            cornerRadius = 30.dp,
-                            contentDescription = song?.title
+                        val coverSize = minOf(
+                            maxWidth * 0.80f,
+                            maxHeight * coverFraction
                         )
+                            .coerceAtLeast(72.dp)
+                            .coerceAtMost(420.dp)
+                        val lyricsCardHeight = if (expandedLyrics) 124.dp else 82.dp
+                        val showLyricsPreview =
+                            canShowLyrics && maxHeight - coverSize >= lyricsCardHeight
+
+                        Column(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(horizontal = 24.dp, vertical = 4.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center
+                        ) {
+                            Box(
+                                modifier = Modifier.graphicsLayer {
+                                    scaleX = coverScale
+                                    scaleY = coverScale
+                                }
+                            ) {
+                                CoverArt(
+                                    artworkUri = song?.artworkUri,
+                                    size = coverSize,
+                                    cornerRadius = if (coverSize > 200.dp) 30.dp else 22.dp,
+                                    contentDescription = song?.title
+                                )
+                            }
+                            if (showLyricsPreview) {
+                                Spacer(Modifier.height(12.dp))
+                                LyricsPreview(
+                                    lyrics = lyrics,
+                                    positionMs = position,
+                                    expanded = expandedLyrics,
+                                    onOpen = { showLyrics = true }
+                                )
+                            }
+                        }
                     }
                 }
 
-                Spacer(Modifier.height(20.dp))
-                Row(
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 26.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            song?.title ?: "Sin reproducción",
-                            style = MaterialTheme.typography.headlineMedium,
-                            color = glass.textPrimary,
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis
+                        .background(
+                            Brush.verticalGradient(
+                                listOf(
+                                    Color.Transparent,
+                                    glass.backgroundStart.copy(alpha = 0.78f),
+                                    glass.backgroundStart.copy(alpha = 0.95f)
+                                )
+                            )
                         )
-                        Spacer(Modifier.height(3.dp))
-                        Text(
-                            song?.artist ?: "Añade música para empezar",
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = glass.textSecondary,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-                    GlassIconButton(
-                        if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                        if (isFavorite) "Quitar de favoritos" else "Añadir a favoritos",
-                        onClick = viewModel::toggleFavorite,
-                        tint = if (isFavorite) glass.accent else glass.textSecondary
-                    )
-                }
-
-                Spacer(Modifier.height(10.dp))
-                PlaybackSeekBar(
-                    positionMs = position,
-                    durationMs = effectiveDuration,
-                    enabled = effectiveDuration > 0,
-                    onSeek = viewModel::seekTo,
-                    modifier = Modifier.padding(horizontal = 26.dp)
-                )
-
-                Spacer(Modifier.height(10.dp))
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 18.dp),
-                    horizontalArrangement = Arrangement.SpaceEvenly,
-                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    PlayerControl(
-                        icon = Icons.Default.Shuffle,
-                        description = "Aleatorio",
-                        active = shuffle,
-                        onClick = viewModel::toggleShuffle
-                    )
-                    PlayerControl(
-                        icon = Icons.Default.SkipPrevious,
-                        description = "Anterior",
-                        size = 34.dp,
-                        onClick = viewModel::previous
-                    )
-                    Box(
+                    Column(
                         modifier = Modifier
-                            .size(76.dp)
-                            .clip(CircleShape)
-                            .background(glass.accent)
-                            .clickable(onClick = viewModel::toggle),
-                        contentAlignment = Alignment.Center
+                            .fillMaxWidth()
+                            .navigationBarsPadding()
+                            .padding(
+                                start = if (veryCompact) 16.dp else 24.dp,
+                                end = if (veryCompact) 16.dp else 24.dp,
+                                top = 8.dp,
+                                bottom = if (veryCompact) 4.dp else 8.dp
+                            )
                     ) {
-                        Icon(
-                            if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                            contentDescription = if (isPlaying) "Pausar" else "Reproducir",
-                            tint = if (glass.isDark) Color(0xFF061019) else Color.White,
-                            modifier = Modifier.size(40.dp)
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    song?.title ?: "Sin reproducción",
+                                    style = if (compact) MaterialTheme.typography.titleLarge
+                                    else MaterialTheme.typography.headlineMedium,
+                                    color = glass.textPrimary,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                Spacer(Modifier.height(2.dp))
+                                Text(
+                                    song?.artist ?: "Añade música para empezar",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = glass.textSecondary,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                            GlassIconButton(
+                                if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                                if (isFavorite) "Quitar de favoritos" else "Añadir a favoritos",
+                                onClick = viewModel::toggleFavorite,
+                                tint = if (isFavorite) glass.accent else glass.textSecondary,
+                                size = if (veryCompact) 38.dp else 44.dp
+                            )
+                        }
+
+                        Spacer(Modifier.height(if (veryCompact) 2.dp else 6.dp))
+                        PlaybackSeekBar(
+                            positionMs = position,
+                            durationMs = effectiveDuration,
+                            enabled = effectiveDuration > 0,
+                            onSeek = viewModel::seekTo
                         )
-                    }
-                    PlayerControl(
-                        icon = Icons.Default.SkipNext,
-                        description = "Siguiente",
-                        size = 34.dp,
-                        onClick = viewModel::next
-                    )
-                    PlayerControl(
-                        icon = if (repeatMode == Player.REPEAT_MODE_ONE) Icons.Default.RepeatOne else Icons.Default.Repeat,
-                        description = "Repetir",
-                        active = repeatMode != Player.REPEAT_MODE_OFF,
-                        onClick = viewModel::cycleRepeat
-                    )
-                }
 
-                Spacer(Modifier.height(18.dp))
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 22.dp),
-                    horizontalArrangement = Arrangement.SpaceEvenly
-                ) {
-                    SecondaryAction(Icons.Default.Subject, "Letra", enabled = lyrics.lines.isNotEmpty()) {
-                        showLyrics = true
-                    }
-                    SecondaryAction(Icons.Default.QueueMusic, "Cola") {
-                        navController.navigate(Routes.QUEUE)
-                    }
-                    SecondaryAction(Icons.Default.Equalizer, "Efectos") {
-                        navController.navigate(Routes.EFFECTS)
-                    }
-                    SecondaryAction(
-                        Icons.Default.Timer,
-                        if (sleepRemaining > 0) formatDuration(sleepRemaining) else "Temporizador"
-                    ) { showTimer = true }
-                    SecondaryAction(Icons.AutoMirrored.Filled.VolumeUp, "Volumen") {
-                        showVolume = true
+                        Spacer(Modifier.height(if (veryCompact) 2.dp else 6.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceEvenly,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            PlayerControl(
+                                icon = Icons.Default.Shuffle,
+                                description = "Aleatorio",
+                                active = shuffle,
+                                onClick = viewModel::toggleShuffle
+                            )
+                            PlayerControl(
+                                icon = Icons.Default.SkipPrevious,
+                                description = "Anterior",
+                                size = if (compact) 30.dp else 34.dp,
+                                onClick = viewModel::previous
+                            )
+                            Box(
+                                modifier = Modifier
+                                    .size(if (veryCompact) 60.dp else if (compact) 68.dp else 76.dp)
+                                    .clip(CircleShape)
+                                    .background(glass.accent)
+                                    .clickable(onClick = viewModel::toggle),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                                    contentDescription = if (isPlaying) "Pausar" else "Reproducir",
+                                    tint = if (glass.isDark) Color(0xFF061019) else Color.White,
+                                    modifier = Modifier.size(if (veryCompact) 32.dp else 40.dp)
+                                )
+                            }
+                            PlayerControl(
+                                icon = Icons.Default.SkipNext,
+                                description = "Siguiente",
+                                size = if (compact) 30.dp else 34.dp,
+                                onClick = viewModel::next
+                            )
+                            PlayerControl(
+                                icon = if (repeatMode == Player.REPEAT_MODE_ONE) Icons.Default.RepeatOne else Icons.Default.Repeat,
+                                description = "Repetir",
+                                active = repeatMode != Player.REPEAT_MODE_OFF,
+                                onClick = viewModel::cycleRepeat
+                            )
+                        }
+
+                        Spacer(Modifier.height(if (veryCompact) 0.dp else 4.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceEvenly,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            SecondaryAction(
+                                Icons.Default.Subject,
+                                "Letra",
+                                showLabel = !veryCompact,
+                                enabled = lyrics.lines.isNotEmpty()
+                            ) { showLyrics = true }
+                            SecondaryAction(
+                                Icons.Default.QueueMusic,
+                                "Cola",
+                                showLabel = !veryCompact
+                            ) { navController.navigate(Routes.QUEUE) }
+                            SecondaryAction(
+                                Icons.Default.Equalizer,
+                                "Efectos",
+                                showLabel = !veryCompact
+                            ) { navController.navigate(Routes.EFFECTS) }
+                            SecondaryAction(
+                                Icons.Default.Timer,
+                                if (sleepRemaining > 0) formatDuration(sleepRemaining) else "Temporizador",
+                                showLabel = !veryCompact
+                            ) { showTimer = true }
+                            SecondaryAction(
+                                Icons.AutoMirrored.Filled.VolumeUp,
+                                "Volumen",
+                                showLabel = !veryCompact
+                            ) { showVolume = true }
+                        }
                     }
                 }
-
-                Spacer(Modifier.height(24.dp))
             }
         }
     }
@@ -395,6 +451,85 @@ fun PlayerScreen(
             onSeek = viewModel::seekTo,
             onDismiss = { showLyrics = false }
         )
+    }
+}
+
+@Composable
+private fun LyricsPreview(
+    lyrics: com.andrespar2.parsound.data.lyrics.Lyrics,
+    positionMs: Long,
+    expanded: Boolean,
+    onOpen: () -> Unit
+) {
+    val glass = LocalGlass.current
+    val index = lyrics.currentIndex(positionMs)
+    val current = lyrics.lines.getOrNull(index) ?: return
+    val previous = lyrics.lines.getOrNull(index - 1)
+    val next = lyrics.lines.getOrNull(index + 1)
+    val next2 = lyrics.lines.getOrNull(index + 2)
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 6.dp)
+            .glassModifier(20.dp)
+            .clickable(onClick = onOpen)
+            .padding(horizontal = 16.dp, vertical = 10.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                "LETRA",
+                style = MaterialTheme.typography.labelSmall,
+                color = glass.accent,
+                fontWeight = FontWeight.SemiBold
+            )
+            Spacer(Modifier.weight(1f))
+            Text(
+                "Toca para ver completa",
+                style = MaterialTheme.typography.labelSmall,
+                color = glass.textSecondary
+            )
+        }
+        Spacer(Modifier.height(4.dp))
+        if (expanded && previous != null) {
+            Text(
+                previous.text,
+                style = MaterialTheme.typography.bodySmall,
+                color = glass.textSecondary.copy(alpha = 0.55f),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Spacer(Modifier.height(2.dp))
+        }
+        Text(
+            current.text,
+            style = MaterialTheme.typography.titleMedium,
+            color = glass.textPrimary,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+        if (next != null) {
+            Spacer(Modifier.height(2.dp))
+            Text(
+                next.text,
+                style = MaterialTheme.typography.bodySmall,
+                color = glass.textSecondary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+        if (expanded && next2 != null) {
+            Spacer(Modifier.height(2.dp))
+            Text(
+                next2.text,
+                style = MaterialTheme.typography.bodySmall,
+                color = glass.textSecondary.copy(alpha = 0.55f),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
     }
 }
 
@@ -536,6 +671,7 @@ private fun PlayerControl(
 private fun SecondaryAction(
     icon: ImageVector,
     label: String,
+    showLabel: Boolean = true,
     enabled: Boolean = true,
     onClick: () -> Unit
 ) {
@@ -544,7 +680,7 @@ private fun SecondaryAction(
         modifier = Modifier
             .clip(RoundedCornerShape(14.dp))
             .clickable(enabled = enabled, onClick = onClick)
-            .padding(horizontal = 4.dp, vertical = 4.dp),
+            .padding(horizontal = 4.dp, vertical = if (showLabel) 4.dp else 2.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Icon(
@@ -553,13 +689,15 @@ private fun SecondaryAction(
             tint = if (enabled) glass.textSecondary else glass.textSecondary.copy(alpha = 0.35f),
             modifier = Modifier.size(21.dp)
         )
-        Spacer(Modifier.height(3.dp))
-        Text(
-            label,
-            style = MaterialTheme.typography.labelSmall,
-            color = if (enabled) glass.textSecondary else glass.textSecondary.copy(alpha = 0.35f),
-            maxLines = 1
-        )
+        if (showLabel) {
+            Spacer(Modifier.height(3.dp))
+            Text(
+                label,
+                style = MaterialTheme.typography.labelSmall,
+                color = if (enabled) glass.textSecondary else glass.textSecondary.copy(alpha = 0.35f),
+                maxLines = 1
+            )
+        }
     }
 }
 
@@ -647,33 +785,40 @@ private fun LyricsSheet(
                     message = "Añade un archivo .lrc junto a la canción con el mismo nombre para verla aquí, sincronizada automáticamente."
                 )
             } else {
-                LazyColumn(
-                    modifier = Modifier.weight(1f),
-                    state = listState,
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth(),
+                    contentAlignment = Alignment.TopCenter
                 ) {
-                    item { Spacer(Modifier.height(80.dp)) }
-                    itemsIndexed(lyrics.lines) { index, line ->
-                        val active = lyrics.synced && index == currentIndex
-                        Text(
-                            line.text,
-                            style = if (active) MaterialTheme.typography.titleLarge
-                            else MaterialTheme.typography.bodyLarge,
-                            color = if (active) glass.accent
-                            else glass.textPrimary.copy(alpha = 0.68f),
-                            fontWeight = if (active) FontWeight.Bold else FontWeight.Normal,
-                            textAlign = TextAlign.Start,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(10.dp))
-                                .clickable(enabled = lyrics.synced) {
-                                    autoScroll = true
-                                    onSeek(line.timeMs.coerceAtLeast(0))
-                                }
-                                .padding(vertical = 8.dp, horizontal = 4.dp)
-                        )
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .widthIn(max = 680.dp),
+                        state = listState,
+                        verticalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterVertically)
+                    ) {
+                        itemsIndexed(lyrics.lines) { index, line ->
+                            val active = lyrics.synced && index == currentIndex
+                            Text(
+                                line.text,
+                                style = if (active) MaterialTheme.typography.titleLarge
+                                else MaterialTheme.typography.bodyLarge,
+                                color = if (active) glass.accent
+                                else glass.textPrimary.copy(alpha = 0.68f),
+                                fontWeight = if (active) FontWeight.Bold else FontWeight.Normal,
+                                textAlign = TextAlign.Start,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .clickable(enabled = lyrics.synced) {
+                                        autoScroll = true
+                                        onSeek(line.timeMs.coerceAtLeast(0))
+                                    }
+                                    .padding(vertical = 8.dp, horizontal = 4.dp)
+                            )
+                        }
                     }
-                    item { Spacer(Modifier.height(100.dp)) }
                 }
             }
         }

@@ -101,6 +101,7 @@ class PlayerManager @Inject constructor(
     private var lastWidgetSongId = -1L
     private var lastWidgetPlaying: Boolean? = null
     private var shufflePreference = false
+    private var crossfadeValue = 0
     private var sleepTimerJob: Job? = null
     private var restoreAttempted = false
     private var paletteJob: Job? = null
@@ -109,7 +110,10 @@ class PlayerManager @Inject constructor(
 
     init {
         scope.launch {
-            preferences.crossfadeMs.collect { player.setCrossfadeMillis(it) }
+            preferences.crossfadeMs.collect {
+                crossfadeValue = it.coerceIn(0, 12_000)
+                player.setCrossfadeMillis(crossfadeValue)
+            }
         }
         scope.launch {
             preferences.pauseOnDisconnect.collect { player.setPauseOnDisconnect(it) }
@@ -308,9 +312,29 @@ class PlayerManager @Inject constructor(
         if (songs.isEmpty()) return
         _error.value = null
         songsById = songs.associateBy { it.id }
-        _queue.value = songs
         val index = startIndex.coerceIn(songs.indices)
-        val items = songs.map { it.toMediaItem() }
+        val orderedSongs = if (shufflePreference && songs.size > 1) {
+            listOf(songs[index]) + songs.filterIndexed { itemIndex, _ -> itemIndex != index }.shuffled()
+        } else {
+            songs
+        }
+        val orderedIndex = if (shufflePreference && songs.size > 1) 0 else index
+        val items = orderedSongs.map { it.toMediaItem() }
+        val currentId = player.currentMediaItem?.mediaId
+        val canCrossfade = autoPlay &&
+            crossfadeValue > 0 &&
+            player.isPlaying &&
+            currentId != null &&
+            currentId != items[orderedIndex].mediaId
+        if (canCrossfade &&
+            player.crossfadeToMediaItems(items, orderedIndex, crossfadeValue)
+        ) {
+            _queue.value = orderedSongs
+            ensureService()
+            syncFromPlayer()
+            return
+        }
+        _queue.value = songs
         player.setMediaItems(items, index, 0L)
         if (player.shuffleModeEnabled) player.shuffleModeEnabled = false
         if (shufflePreference) player.shuffleModeEnabled = true
@@ -353,20 +377,11 @@ class PlayerManager @Inject constructor(
     }
 
     fun next() {
-        if (player.hasNextMediaItem()) player.seekToNextMediaItem()
-        else if (player.repeatMode == Player.REPEAT_MODE_ALL && player.mediaItemCount > 0) {
-            player.seekToDefaultPosition(0)
-        }
+        player.skipNextWithFade()
     }
 
     fun previous() {
-        if (player.currentPosition > 3_000) {
-            player.seekTo(0)
-        } else if (player.hasPreviousMediaItem()) {
-            player.seekToPreviousMediaItem()
-        } else {
-            player.seekTo(0)
-        }
+        player.skipPreviousWithFade()
     }
 
     fun seekTo(positionMs: Long) {
