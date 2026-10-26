@@ -32,8 +32,11 @@ Sin anuncios. Sin cuentas. Sin seguimiento. Sin subir tu música a ningún sitio
   vista previa de la letra debajo cuando hay espacio.
 - **Barra de reproducción propia** con progreso en tiempo real, arrastre y toque
   para saltar a cualquier punto de la canción.
-- **Letras LRC locales**, sincronizadas, con resaltado de la línea actual,
-  desplazamiento automático y vuelta a la posición actual.
+- **Letras locales**: archivos LRC junto a la canción y letras incrustadas en
+  etiquetas de FLAC, MP3, OGG, M4A y WAV. Sincronización, resaltado de la línea
+  actual, desplazamiento automático y vuelta a la posición actual.
+- **Recuperación de letras** al reproducir y desde
+  **Ajustes → Biblioteca → Buscar letras en los archivos** para toda la biblioteca.
 - **Crossfade real** que se aplica al final de cada pista y también al cambiar
   de canción manualmente, desde la notificación, la cola o el widget.
 - **Ecualizador real** mediante `android.media.audiofx.Equalizer`, con presets
@@ -41,7 +44,9 @@ Sin anuncios. Sin cuentas. Sin seguimiento. Sin subir tu música a ningún sitio
 - **Velocidad y tono** independientes con el procesador Sonic de Media3.
 - **Listas de reproducción**, favoritos persistentes, historial, búsqueda,
   ordenación, reanudación de la última sesión y temporizador de apagado.
-- **Widgets** compacto, mediano y grande para la pantalla de inicio.
+- **Widgets** compacto, mediano y grande para la pantalla de inicio, con
+  márgenes de cristal, portada redondeada y controles de anterior,
+  reproducir/pausar y siguiente.
 - **Icono adaptativo** original con foreground, background y monocromo.
 
 | Biblioteca | Reproductor | Letras | Ajustes |
