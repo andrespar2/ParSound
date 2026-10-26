@@ -116,19 +116,22 @@ private fun WidgetContent(snapshot: WidgetSnapshot, artwork: Bitmap?) {
 
 @Composable
 private fun CompactLayout(snapshot: WidgetSnapshot, artwork: Bitmap?, size: DpSize) {
-    val textWidth = (size.width - 92.dp).coerceAtLeast(34.dp).coerceAtMost(400.dp)
+    val wide = size.width >= 240.dp
+    val textWidth = (size.width - if (wide) 164.dp else 98.dp)
+        .coerceAtLeast(34.dp)
+        .coerceAtMost(400.dp)
     Row(
         modifier = GlanceModifier
             .fillMaxSize()
-            .padding(horizontal = 8.dp, vertical = 8.dp),
+            .padding(horizontal = 9.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Cover(
             artwork,
-            34,
+            38,
             GlanceModifier.clickable(actionStartActivity<MainActivity>())
         )
-        Spacer(GlanceModifier.width(7.dp))
+        Spacer(GlanceModifier.width(8.dp))
         Column(
             modifier = GlanceModifier
                 .width(textWidth)
@@ -138,7 +141,7 @@ private fun CompactLayout(snapshot: WidgetSnapshot, artwork: Bitmap?, size: DpSi
                 snapshot.title,
                 maxLines = 1,
                 style = TextStyle(
-                    fontSize = 11.sp,
+                    fontSize = 12.sp,
                     fontWeight = FontWeight.Bold,
                     color = ColorProvider(Color.White)
                 )
@@ -155,17 +158,37 @@ private fun CompactLayout(snapshot: WidgetSnapshot, artwork: Bitmap?, size: DpSi
             }
         }
         Spacer(GlanceModifier.width(4.dp))
-        ControlButton(if (snapshot.isPlaying) "⏸" else "▶", 76, 30)
+        if (wide) {
+            WidgetControl(WidgetIcon.Previous, 92, 29, snapshot)
+            Spacer(GlanceModifier.width(4.dp))
+            WidgetControl(
+                if (snapshot.isPlaying) WidgetIcon.Pause else WidgetIcon.Play,
+                76,
+                34,
+                snapshot,
+                filled = true
+            )
+            Spacer(GlanceModifier.width(4.dp))
+            WidgetControl(WidgetIcon.Next, 93, 29, snapshot)
+        } else {
+            WidgetControl(
+                if (snapshot.isPlaying) WidgetIcon.Pause else WidgetIcon.Play,
+                76,
+                34,
+                snapshot,
+                filled = true
+            )
+        }
     }
 }
 
 @Composable
 private fun MediumLayout(snapshot: WidgetSnapshot, artwork: Bitmap?, size: DpSize) {
-    val textWidth = (size.width - 104.dp).coerceAtLeast(40.dp).coerceAtMost(420.dp)
+    val textWidth = (size.width - 92.dp).coerceAtLeast(48.dp).coerceAtMost(360.dp)
     Column(
         modifier = GlanceModifier
             .fillMaxSize()
-            .padding(horizontal = 14.dp, vertical = 12.dp)
+            .padding(horizontal = 14.dp, vertical = 11.dp)
     ) {
         Row(
             modifier = GlanceModifier.fillMaxWidth(),
@@ -173,20 +196,99 @@ private fun MediumLayout(snapshot: WidgetSnapshot, artwork: Bitmap?, size: DpSiz
         ) {
             Cover(
                 artwork,
-                64,
+                60,
                 GlanceModifier.clickable(actionStartActivity<MainActivity>())
             )
-            Spacer(GlanceModifier.width(12.dp))
+            Spacer(GlanceModifier.width(11.dp))
             Column(
                 modifier = GlanceModifier
                     .width(textWidth)
                     .clickable(actionStartActivity<MainActivity>())
             ) {
                 Text(
+                    "PARSOUND",
+                    style = TextStyle(
+                        fontSize = 8.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = ColorProvider(Color(0x99FFFFFF))
+                    )
+                )
+                Spacer(GlanceModifier.height(2.dp))
+                Text(
                     snapshot.title,
                     maxLines = 1,
                     style = TextStyle(
                         fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = ColorProvider(Color.White)
+                    )
+                )
+                Spacer(GlanceModifier.height(1.dp))
+                Text(
+                    snapshot.artist,
+                    maxLines = 1,
+                    style = TextStyle(fontSize = 11.sp, color = ColorProvider(Color(0xBFFFFFFF)))
+                )
+            }
+        }
+        Spacer(GlanceModifier.height(8.dp))
+        Row(
+            modifier = GlanceModifier.fillMaxWidth(),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            WidgetControl(WidgetIcon.Previous, 92, 34, snapshot)
+            Spacer(GlanceModifier.width(10.dp))
+            WidgetControl(
+                if (snapshot.isPlaying) WidgetIcon.Pause else WidgetIcon.Play,
+                76,
+                40,
+                snapshot,
+                filled = true
+            )
+            Spacer(GlanceModifier.width(10.dp))
+            WidgetControl(WidgetIcon.Next, 93, 34, snapshot)
+        }
+    }
+}
+
+@Composable
+private fun LargeLayout(snapshot: WidgetSnapshot, artwork: Bitmap?, size: DpSize) {
+    val textWidth = (size.width - 144.dp).coerceAtLeast(60.dp).coerceAtMost(420.dp)
+    Column(
+        modifier = GlanceModifier
+            .fillMaxSize()
+            .padding(18.dp)
+    ) {
+        Row(
+            modifier = GlanceModifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Cover(
+                artwork,
+                94,
+                GlanceModifier.clickable(actionStartActivity<MainActivity>())
+            )
+            Spacer(GlanceModifier.width(14.dp))
+            Column(
+                modifier = GlanceModifier
+                    .width(textWidth)
+                    .clickable(actionStartActivity<MainActivity>())
+            ) {
+                Text(
+                    "PARSOUND",
+                    style = TextStyle(
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = ColorProvider(Color(0xAAFFFFFF))
+                    )
+                )
+                Spacer(GlanceModifier.height(3.dp))
+                Text(
+                    snapshot.title,
+                    maxLines = 2,
+                    style = TextStyle(
+                        fontSize = 17.sp,
                         fontWeight = FontWeight.Bold,
                         color = ColorProvider(Color.White)
                     )
@@ -199,81 +301,23 @@ private fun MediumLayout(snapshot: WidgetSnapshot, artwork: Bitmap?, size: DpSiz
                 )
             }
         }
-        Spacer(GlanceModifier.height(10.dp))
+        Spacer(GlanceModifier.height(12.dp))
         Row(
             modifier = GlanceModifier.fillMaxWidth(),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            ControlButton("⏮", 92, 34)
-            Spacer(GlanceModifier.width(8.dp))
-            ControlButton(if (snapshot.isPlaying) "⏸" else "▶", 76, 38)
-            Spacer(GlanceModifier.width(8.dp))
-            ControlButton("⏭", 93, 34)
-        }
-    }
-}
-
-@Composable
-private fun LargeLayout(snapshot: WidgetSnapshot, artwork: Bitmap?, size: DpSize) {
-    val textWidth = (size.width - 146.dp).coerceAtLeast(50.dp).coerceAtMost(460.dp)
-    Column(
-        modifier = GlanceModifier
-            .fillMaxSize()
-            .padding(18.dp)
-    ) {
-        Row(
-            modifier = GlanceModifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Cover(
-                artwork,
-                96,
-                GlanceModifier.clickable(actionStartActivity<MainActivity>())
+            WidgetControl(WidgetIcon.Previous, 92, 40, snapshot)
+            Spacer(GlanceModifier.width(14.dp))
+            WidgetControl(
+                if (snapshot.isPlaying) WidgetIcon.Pause else WidgetIcon.Play,
+                76,
+                46,
+                snapshot,
+                filled = true
             )
             Spacer(GlanceModifier.width(14.dp))
-            Column(
-                modifier = GlanceModifier
-                    .width(textWidth)
-                    .clickable(actionStartActivity<MainActivity>())
-            ) {
-                Text(
-                    "PARSOUND",
-                    style = TextStyle(
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = ColorProvider(Color(0x99FFFFFF))
-                    )
-                )
-                Spacer(GlanceModifier.height(4.dp))
-                Text(
-                    snapshot.title,
-                    maxLines = 2,
-                    style = TextStyle(
-                        fontSize = 17.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = ColorProvider(Color.White)
-                    )
-                )
-                Spacer(GlanceModifier.height(3.dp))
-                Text(
-                    snapshot.artist,
-                    maxLines = 1,
-                    style = TextStyle(fontSize = 12.sp, color = ColorProvider(Color(0xBFFFFFFF)))
-                )
-            }
-        }
-        Spacer(GlanceModifier.height(14.dp))
-        Row(
-            modifier = GlanceModifier.fillMaxWidth(),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            ControlButton("⏮", 100, 40)
-            Spacer(GlanceModifier.width(12.dp))
-            ControlButton(if (snapshot.isPlaying) "⏸" else "▶", 80, 44)
-            Spacer(GlanceModifier.width(12.dp))
-            ControlButton("⏭", 94, 40)
+            WidgetControl(WidgetIcon.Next, 93, 40, snapshot)
         }
     }
 }
@@ -308,13 +352,81 @@ private fun Cover(artwork: Bitmap?, dimension: Int, modifier: GlanceModifier = G
     }
 }
 
+private enum class WidgetIcon { Play, Pause, Previous, Next }
+
+private val widgetIconCache = HashMap<String, Bitmap>()
+
+private fun widgetIcon(kind: WidgetIcon, color: Int): Bitmap {
+    val key = "${kind.name}-$color"
+    widgetIconCache[key]?.let { return it }
+    val bitmap = Bitmap.createBitmap(96, 96, Bitmap.Config.ARGB_8888)
+    val canvas = Canvas(bitmap)
+    val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        this.color = color
+        style = Paint.Style.FILL
+        strokeJoin = Paint.Join.ROUND
+        strokeCap = Paint.Cap.ROUND
+    }
+    when (kind) {
+        WidgetIcon.Play -> {
+            val path = android.graphics.Path().apply {
+                moveTo(30f, 20f)
+                lineTo(74f, 48f)
+                lineTo(30f, 76f)
+                close()
+            }
+            canvas.drawPath(path, paint)
+        }
+        WidgetIcon.Pause -> {
+            canvas.drawRoundRect(28f, 22f, 42f, 74f, 5f, 5f, paint)
+            canvas.drawRoundRect(54f, 22f, 68f, 74f, 5f, 5f, paint)
+        }
+        WidgetIcon.Previous -> {
+            canvas.drawRoundRect(24f, 22f, 33f, 74f, 4f, 4f, paint)
+            val path = android.graphics.Path().apply {
+                moveTo(72f, 22f)
+                lineTo(37f, 48f)
+                lineTo(72f, 74f)
+                close()
+            }
+            canvas.drawPath(path, paint)
+        }
+        WidgetIcon.Next -> {
+            val path = android.graphics.Path().apply {
+                moveTo(24f, 22f)
+                lineTo(59f, 48f)
+                lineTo(24f, 74f)
+                close()
+            }
+            canvas.drawPath(path, paint)
+            canvas.drawRoundRect(63f, 22f, 72f, 74f, 4f, 4f, paint)
+        }
+    }
+    widgetIconCache[key] = bitmap
+    return bitmap
+}
+
 @Composable
-private fun ControlButton(label: String, action: Int, size: Int) {
+private fun WidgetControl(
+    icon: WidgetIcon,
+    action: Int,
+    size: Int,
+    snapshot: WidgetSnapshot,
+    filled: Boolean = false
+) {
+    val accent = snapshot.accent
+    val accentLuma = (
+        ((accent shr 16) and 0xFF) * 0.299f +
+            ((accent shr 8) and 0xFF) * 0.587f +
+            (accent and 0xFF) * 0.114f
+        )
+    val iconColor = if (filled && accentLuma > 150f) 0xFF07111C.toInt() else 0xFFFFFFFF.toInt()
+    val background = if (filled) accent else 0x2BFFFFFF
     Box(
         modifier = GlanceModifier
             .size(size.dp)
             .cornerRadius((size / 2).dp)
-            .background(ColorProvider(Color(0x26FFFFFF)))
+            .background(ColorProvider(Color(background)))
             .clickable(
                 actionRunCallback<WidgetCommandAction>(
                     actionParametersOf(WidgetCommandAction.actionKey to action.toString())
@@ -322,13 +434,16 @@ private fun ControlButton(label: String, action: Int, size: Int) {
             ),
         contentAlignment = Alignment.Center
     ) {
-        Text(
-            label,
-            style = TextStyle(
-                fontSize = if (size > 40) 22.sp else 14.sp,
-                fontWeight = FontWeight.Bold,
-                color = ColorProvider(Color.White)
-            )
+        Image(
+            provider = ImageProvider(widgetIcon(icon, iconColor)),
+            contentDescription = when (icon) {
+                WidgetIcon.Play -> "Reproducir"
+                WidgetIcon.Pause -> "Pausar"
+                WidgetIcon.Previous -> "Anterior"
+                WidgetIcon.Next -> "Siguiente"
+            },
+            contentScale = androidx.glance.layout.ContentScale.Fit,
+            modifier = GlanceModifier.size((size * 0.48f).dp)
         )
     }
 }
@@ -356,19 +471,54 @@ class WidgetCommandAction : ActionCallback {
     }
 }
 private fun gradientBitmap(start: Int, accent: Int): Bitmap {
-    val bitmap = Bitmap.createBitmap(96, 96, Bitmap.Config.ARGB_8888)
+    val bitmap = Bitmap.createBitmap(192, 192, Bitmap.Config.ARGB_8888)
     val canvas = Canvas(bitmap)
-    val paint = Paint(Paint.ANTI_ALIAS_FLAG)
-    paint.shader = LinearGradient(
-        0f, 0f, 96f, 96f,
+    val rounded = android.graphics.Path().apply {
+        addRoundRect(
+            android.graphics.RectF(0f, 0f, 192f, 192f),
+            18f, 18f,
+            android.graphics.Path.Direction.CW
+        )
+    }
+    canvas.save()
+    canvas.clipPath(rounded)
+    val base = Paint(Paint.ANTI_ALIAS_FLAG)
+    base.shader = LinearGradient(
+        0f, 0f, 192f, 192f,
         intArrayOf(
-            (start and 0x00FFFFFF) or (0xF2 shl 24),
-            ((accent and 0x00FFFFFF) or (0x55 shl 24)),
-            (start and 0x00FFFFFF) or (0xF2 shl 24)
+            (start and 0x00FFFFFF) or (0xF7 shl 24),
+            ((accent and 0x00FFFFFF) or (0x66 shl 24)),
+            (start and 0x00FFFFFF) or (0xF7 shl 24)
         ),
-        floatArrayOf(0f, 0.55f, 1f),
+        floatArrayOf(0f, 0.50f, 1f),
         Shader.TileMode.CLAMP
     )
-    canvas.drawRoundRect(0f, 0f, 96f, 96f, 8f, 8f, paint)
+    canvas.drawRect(0f, 0f, 192f, 192f, base)
+
+    val glow = Paint(Paint.ANTI_ALIAS_FLAG)
+    glow.shader = android.graphics.RadialGradient(
+        28f, 18f, 150f,
+        intArrayOf(0x24FFFFFF, 0x00FFFFFF),
+        null,
+        Shader.TileMode.CLAMP
+    )
+    canvas.drawRect(0f, 0f, 192f, 192f, glow)
+
+    val shade = Paint(Paint.ANTI_ALIAS_FLAG)
+    shade.shader = LinearGradient(
+        0f, 120f, 0f, 192f,
+        intArrayOf(0x00000000, 0x22000000),
+        null,
+        Shader.TileMode.CLAMP
+    )
+    canvas.drawRect(0f, 0f, 192f, 192f, shade)
+
+    val border = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.STROKE
+        strokeWidth = 1.5f
+        color = 0x30FFFFFF
+    }
+    canvas.drawRoundRect(0.75f, 0.75f, 191.25f, 191.25f, 18f, 18f, border)
+    canvas.restore()
     return bitmap
 }

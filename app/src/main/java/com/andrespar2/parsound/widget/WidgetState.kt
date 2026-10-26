@@ -3,6 +3,10 @@ package com.andrespar2.parsound.widget
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.BitmapShader
+import android.graphics.Canvas
+import android.graphics.Paint
+import android.graphics.Shader
 import java.io.File
 
 data class WidgetSnapshot(
@@ -69,8 +73,22 @@ object WidgetStateStore {
                         BitmapFactory.decodeStream(it, null, decodeOptions)
                     }
                 else -> null
-            }
+            }?.let { rounded(it) }
         }.getOrNull()
+    }
+
+    private fun rounded(source: Bitmap): Bitmap {
+        val output = Bitmap.createBitmap(source.width, source.height, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(output)
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            shader = BitmapShader(source, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP)
+        }
+        val radius = minOf(source.width, source.height) * 0.10f
+        canvas.drawRoundRect(
+            0f, 0f, source.width.toFloat(), source.height.toFloat(),
+            radius, radius, paint
+        )
+        return output
     }
 
     fun artworkFile(path: String?): File? {

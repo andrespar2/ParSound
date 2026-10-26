@@ -10,22 +10,12 @@
             <gradient
                 android:type="linear"
                 android:startX="0"
-                android:startY="0"
+                android:startY="108"
                 android:endX="108"
-                android:endY="108"
-                android:startColor="#070B14"
-                android:centerColor="#11203A"
-                android:endColor="#1B3A63" />
+                android:endY="0"
+                android:startColor="#3A0E6B"
+                android:centerColor="#0A0F2A"
+                android:endColor="#0A3A7A" />
         </aapt:attr>
     </path>
-    <path
-        android:pathData="M54,24a30,30 0 1,0 0,60a30,30 0 1,0 0,-60z"
-        android:fillColor="#1AFFFFFF"
-        android:strokeColor="#40FFFFFF"
-        android:strokeWidth="0.8" />
-    <path
-        android:pathData="M54,28a26,26 0 1,0 0,52a26,26 0 1,0 0,-52z"
-        android:fillColor="#00000000"
-        android:strokeColor="#22FFFFFF"
-        android:strokeWidth="0.6" />
 </vector>
