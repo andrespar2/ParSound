@@ -28,8 +28,14 @@ Sin anuncios. Sin cuentas. Sin seguimiento. Sin subir tu música a ningún sitio
   transparencia, reflejos, animaciones y modo de ahorro de recursos.
 - **Pantalla de reproducción** con portada grande, progreso interactivo,
   aleatorio, repetición, favoritos, cola, letras, efectos, volumen y temporizador.
+  El diseño se adapta al tamaño: controles siempre abajo, portada centrada y
+  vista previa de la letra debajo cuando hay espacio.
+- **Barra de reproducción propia** con progreso en tiempo real, arrastre y toque
+  para saltar a cualquier punto de la canción.
 - **Letras LRC locales**, sincronizadas, con resaltado de la línea actual,
   desplazamiento automático y vuelta a la posición actual.
+- **Crossfade real** que se aplica al final de cada pista y también al cambiar
+  de canción manualmente, desde la notificación, la cola o el widget.
 - **Ecualizador real** mediante `android.media.audiofx.Equalizer`, con presets
   del dispositivo y bandas ajustables cuando la salida de audio lo permite.
 - **Velocidad y tono** independientes con el procesador Sonic de Media3.
@@ -41,6 +47,11 @@ Sin anuncios. Sin cuentas. Sin seguimiento. Sin subir tu música a ningún sitio
 | Biblioteca | Reproductor | Letras | Ajustes |
 |---|---|---|---|
 | ![Biblioteca](docs/screenshots/library.jpg) | ![Reproductor](docs/screenshots/player.jpg) | ![Letras](docs/screenshots/lyrics.jpg) | ![Ajustes](docs/screenshots/settings.jpg) |
+
+Widget adaptable con portada, título, artista y controles de anterior,
+reproducir/pausar y siguiente:
+
+![Widget](docs/screenshots/widget.jpg)
 
 ## Requisitos
 
