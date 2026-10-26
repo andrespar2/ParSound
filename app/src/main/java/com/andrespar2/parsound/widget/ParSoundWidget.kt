@@ -99,17 +99,22 @@ private fun WidgetContent(snapshot: WidgetSnapshot, artwork: Bitmap?) {
     val gradient = gradientBitmap(snapshot.background, snapshot.accent)
 
     Box(
-        modifier = GlanceModifier
-            .fillMaxSize()
-            .background(ImageProvider(gradient))
-            .cornerRadius(24.dp)
+        modifier = GlanceModifier.fillMaxSize()
     ) {
-        if (large) {
-            LargeLayout(snapshot, artwork, size)
-        } else if (compact) {
-            CompactLayout(snapshot, artwork, size)
-        } else {
-            MediumLayout(snapshot, artwork, size)
+        Box(
+            modifier = GlanceModifier
+                .fillMaxSize()
+                .padding(horizontal = 2.dp, vertical = 5.dp)
+                .background(ImageProvider(gradient))
+                .cornerRadius(20.dp)
+        ) {
+            if (large) {
+                LargeLayout(snapshot, artwork, size)
+            } else if (compact) {
+                CompactLayout(snapshot, artwork, size)
+            } else {
+                MediumLayout(snapshot, artwork, size)
+            }
         }
     }
 }
@@ -486,9 +491,9 @@ private fun gradientBitmap(start: Int, accent: Int): Bitmap {
     base.shader = LinearGradient(
         0f, 0f, 192f, 192f,
         intArrayOf(
-            (start and 0x00FFFFFF) or (0xF7 shl 24),
-            ((accent and 0x00FFFFFF) or (0x66 shl 24)),
-            (start and 0x00FFFFFF) or (0xF7 shl 24)
+            (start and 0x00FFFFFF) or (0xE8 shl 24),
+            ((accent and 0x00FFFFFF) or (0x5C shl 24)),
+            (start and 0x00FFFFFF) or (0xE8 shl 24)
         ),
         floatArrayOf(0f, 0.50f, 1f),
         Shader.TileMode.CLAMP
