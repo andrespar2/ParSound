@@ -62,6 +62,12 @@ interface SongDao {
     @Query("SELECT * FROM songs WHERE id = :id LIMIT 1")
     suspend fun getById(id: Long): SongEntity?
 
+    @Query("SELECT * FROM songs WHERE lrc IS NULL OR TRIM(lrc) = ''")
+    suspend fun getSongsMissingLyrics(): List<SongEntity>
+
+    @Query("UPDATE songs SET lrc = :lyrics WHERE id = :id")
+    suspend fun updateLyrics(id: Long, lyrics: String)
+
     @Query("SELECT * FROM songs WHERE id IN (:ids)")
     suspend fun getByIds(ids: List<Long>): List<SongEntity>
 

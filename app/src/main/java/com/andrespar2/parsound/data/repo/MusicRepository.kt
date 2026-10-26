@@ -14,12 +14,15 @@ import com.andrespar2.parsound.data.local.PlaylistSongEntity
 import com.andrespar2.parsound.data.local.PlaylistSummary
 import com.andrespar2.parsound.data.local.SongDao
 import com.andrespar2.parsound.data.local.SongEntity
+import com.andrespar2.parsound.data.lyrics.LyricsExtractor
 import com.andrespar2.parsound.data.prefs.FolderConfig
 import com.andrespar2.parsound.data.prefs.ParSoundPreferences
 import com.andrespar2.parsound.scanner.LibraryScanner
 import com.andrespar2.parsound.scanner.ScanState
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
@@ -80,6 +83,25 @@ class MusicRepository @Inject constructor(
     suspend fun songById(id: Long): SongEntity? = songDao.getById(id)
 
     suspend fun setFavorite(id: Long, favorite: Boolean) = songDao.setFavorite(id, favorite)
+
+    suspend fun updateLyrics(id: Long, lyrics: String) = songDao.updateLyrics(id, lyrics)
+
+    suspend fun enrichMissingLyrics(onProgress: (found: Int, total: Int) -> Unit = { _, _ -> }): Int =
+        withContext(Dispatchers.IO) {
+            val songs = songDao.getSongsMissingLyrics()
+            var found = 0
+            songs.forEachIndexed { index, song ->
+                val lyrics = runCatching {
+                    LyricsExtractor.extract(context, android.net.Uri.parse(song.uri), song.fileName)
+                }.getOrNull()
+                if (!lyrics.isNullOrBlank()) {
+                    songDao.updateLyrics(song.id, lyrics)
+                    found++
+                }
+                onProgress(found, index + 1)
+            }
+            found
+        }
 
     suspend fun addFolder(folder: FolderConfig) {
         preferences.addFolder(folder)

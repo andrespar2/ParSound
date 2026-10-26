@@ -368,8 +368,7 @@ fun PlayerScreen(
                             SecondaryAction(
                                 Icons.Default.Subject,
                                 "Letra",
-                                showLabel = !veryCompact,
-                                enabled = lyrics.lines.isNotEmpty()
+                                showLabel = !veryCompact
                             ) { showLyrics = true }
                             SecondaryAction(
                                 Icons.Default.QueueMusic,
@@ -782,7 +781,7 @@ private fun LyricsSheet(
                 EmptyState(
                     icon = Icons.Default.Subject,
                     title = "Sin letra disponible",
-                    message = "Añade un archivo .lrc junto a la canción con el mismo nombre para verla aquí, sincronizada automáticamente."
+                    message = "ParSound busca letras LRC junto al archivo y letras incrustadas en los metadatos (FLAC, MP3, OGG, M4A o WAV). Si esta canción no las incluye, puedes añadir un .lrc con el mismo nombre."
                 )
             } else {
                 Box(

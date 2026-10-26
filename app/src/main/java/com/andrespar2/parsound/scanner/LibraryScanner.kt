@@ -8,6 +8,7 @@ import android.provider.MediaStore
 import android.webkit.MimeTypeMap
 import androidx.documentfile.provider.DocumentFile
 import com.andrespar2.parsound.data.local.SongDao
+import com.andrespar2.parsound.data.lyrics.LyricsExtractor
 import com.andrespar2.parsound.data.local.SongEntity
 import com.andrespar2.parsound.data.prefs.FolderConfig
 import com.andrespar2.parsound.data.prefs.ParSoundPreferences
@@ -304,6 +305,10 @@ class LibraryScanner @Inject constructor(
             artwork = folderCover.uri.toString()
         }
 
+        val embeddedLyrics = if (lrc.isNullOrBlank()) {
+            runCatching { LyricsExtractor.extract(context, file.uri, fileName) }.getOrNull()
+        } else null
+
         return SongEntity(
             id = id,
             uri = uri,
@@ -319,7 +324,7 @@ class LibraryScanner @Inject constructor(
             folder = folderName,
             folderUri = folderUri,
             fileName = fileName,
-            lrc = lrc,
+            lrc = lrc ?: embeddedLyrics,
             isFavorite = favorites[uri]?.isFavorite ?: false,
             addedAt = file.lastModified()
         )

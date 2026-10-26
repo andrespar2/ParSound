@@ -17,6 +17,7 @@ import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import androidx.palette.graphics.Palette
 import com.andrespar2.parsound.data.local.SongEntity
+import com.andrespar2.parsound.data.lyrics.LyricsExtractor
 import com.andrespar2.parsound.data.prefs.ParSoundPreferences
 import com.andrespar2.parsound.data.repo.MusicRepository
 import com.andrespar2.parsound.service.PlaybackService
@@ -235,6 +236,28 @@ class PlayerManager @Inject constructor(
             updateWidget(force = true)
         }
         lastHistorySongId = -1L
+        loadEmbeddedLyricsIfNeeded(song)
+    }
+
+    private fun loadEmbeddedLyricsIfNeeded(song: SongEntity) {
+        if (!song.lrc.isNullOrBlank() || song.uri.isBlank()) return
+        scope.launch {
+            val lyrics = withContext(Dispatchers.IO) {
+                runCatching {
+                    LyricsExtractor.extract(context, Uri.parse(song.uri), song.fileName)
+                }.getOrNull()
+            }
+            if (lyrics.isNullOrBlank()) return@launch
+            repository.updateLyrics(song.id, lyrics)
+            val updated = song.copy(lrc = lyrics)
+            songsById = songsById + (song.id to updated)
+            if (_currentSong.value?.id == song.id) {
+                _currentSong.value = updated
+            }
+            _queue.value = _queue.value.map {
+                if (it.id == song.id) updated else it
+            }
+        }
     }
 
     private fun extractPalette(song: SongEntity): PaletteColors {

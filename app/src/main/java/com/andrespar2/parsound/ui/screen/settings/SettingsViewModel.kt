@@ -59,6 +59,14 @@ class SettingsViewModel @Inject constructor(
 
     fun clearHistory() = launch { repository.clearHistory() }
 
+    fun findEmbeddedLyrics(onResult: (Int) -> Unit) {
+        viewModelScope.launch {
+            val found = runCatching { repository.enrichMissingLyrics() }.getOrDefault(0)
+            playerManager.refreshCurrentSong()
+            onResult(found)
+        }
+    }
+
     fun resetAppearance() {
         viewModelScope.launch {
             preferences.setThemeMode(2)

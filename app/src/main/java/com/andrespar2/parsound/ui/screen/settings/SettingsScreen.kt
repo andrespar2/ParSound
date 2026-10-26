@@ -45,6 +45,7 @@ import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.QueueMusic
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Speed
+import androidx.compose.material.icons.filled.Subject
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Widgets
 import androidx.compose.material3.AlertDialog
@@ -355,6 +356,25 @@ fun SettingsScreen(
                         title = "Listas de reproducción",
                         subtitle = "Crea y organiza tus listas",
                         onClick = { navController.navigate(Routes.PLAYLISTS) }
+                    )
+                    SettingsActionRow(
+                        icon = Icons.Default.Subject,
+                        title = "Buscar letras en los archivos",
+                        subtitle = "Lee letras LRC y etiquetas incrustadas de la biblioteca",
+                        onClick = {
+                            Toast.makeText(
+                                context,
+                                "Buscando letras incrustadas…",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                            viewModel.findEmbeddedLyrics { found ->
+                                Toast.makeText(
+                                    context,
+                                    if (found > 0) "$found letras encontradas" else "No se encontraron letras nuevas",
+                                    Toast.LENGTH_LONG
+                                ).show()
+                            }
+                        }
                     )
                     SettingsActionRow(
                         icon = Icons.Default.History,
