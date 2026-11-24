@@ -43,18 +43,22 @@ Sin anuncios. Sin cuentas. Sin seguimiento. Sin subir tu música a ningún sitio
   del dispositivo y bandas ajustables cuando la salida de audio lo permite.
 - **Velocidad y tono** independientes con el procesador Sonic de Media3.
 - **Listas de reproducción**, favoritos persistentes, historial, búsqueda,
-  ordenación, reanudación de la última sesión y temporizador de apagado.
-- **Widgets** compacto, mediano y grande para la pantalla de inicio, con
-  márgenes de cristal, portada redondeada y controles de anterior,
-  reproducir/pausar y siguiente.
+  ordenación, reanudación de la cola, la canción y la posición exacta de la
+  última sesión (incluso tras cerrar la app o reiniciar el dispositivo) y
+  temporizador de apagado.
+- **Widgets** compacto, mediano y grande para la pantalla de inicio. Reproduce
+  el estilo de la barra de reproducción de la app: portada redondeada, título,
+  artista, controles, línea de progreso y cristal coloreado con la paleta de la
+  portada. Se adapta al tamaño que elijas al redimensionarlo.
 - **Icono adaptativo** original con foreground, background y monocromo.
 
 | Biblioteca | Reproductor | Letras | Ajustes |
 |---|---|---|---|
 | ![Biblioteca](docs/screenshots/library.jpg) | ![Reproductor](docs/screenshots/player.jpg) | ![Letras](docs/screenshots/lyrics.jpg) | ![Ajustes](docs/screenshots/settings.jpg) |
 
-Widget adaptable con portada, título, artista y controles de anterior,
-reproducir/pausar y siguiente:
+Widget adaptable con el mismo lenguaje visual que la barra de reproducción:
+portada, título, artista, progreso y controles, con colores tomados de la
+carátula actual:
 
 ![Widget](docs/screenshots/widget.jpg)
 
