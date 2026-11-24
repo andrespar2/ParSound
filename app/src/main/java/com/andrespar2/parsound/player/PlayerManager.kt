@@ -99,12 +99,17 @@ class PlayerManager @Inject constructor(
     private var songsById: Map<Long, SongEntity> = emptyMap()
     private var lastHistorySongId = -1L
     private var lastPersistAt = 0L
+    private var lastWidgetProgressAt = 0L
     private var lastWidgetSongId = -1L
     private var lastWidgetPlaying: Boolean? = null
+    private var lastObservedPlaying = false
     private var shufflePreference = false
     private var crossfadeValue = 0
     private var sleepTimerJob: Job? = null
     private var restoreAttempted = false
+    private var clearingQueue = false
+    private var persistedQueue: List<String> = emptyList()
+    private var persistedIndex = 0
     private var paletteJob: Job? = null
     private var mediaController: MediaController? = null
     private var mediaControllerFuture: com.google.common.util.concurrent.ListenableFuture<MediaController>? = null
@@ -155,6 +160,12 @@ class PlayerManager @Inject constructor(
         player.setStateListener {
             syncFromPlayer()
         }
+        scope.launch {
+            // Si la biblioteca todavía no estaba lista al arrancar, reintenta la sesión.
+            repository.songs.collect { songs ->
+                if (songs.isNotEmpty() && !restoreAttempted) restoreSessionOnce()
+            }
+        }
         scope.launch { tickerLoop() }
     }
 
@@ -163,6 +174,7 @@ class PlayerManager @Inject constructor(
             if (player.playWhenReady || player.isPlaying || player.playbackState == Player.STATE_READY) {
                 syncPosition()
                 persistProgressIfNeeded()
+                updateWidgetProgressIfNeeded()
             }
             updateVolume()
             updateSleepRemaining()
@@ -172,6 +184,8 @@ class PlayerManager @Inject constructor(
 
     private fun syncFromPlayer() {
         _isPlaying.value = player.isPlaying
+        if (lastObservedPlaying && !player.isPlaying) persistSessionAsync()
+        lastObservedPlaying = player.isPlaying
         _playbackState.value = player.playbackState
         _repeatMode.value = player.repeatMode
         _shuffle.value = player.shuffleModeEnabled
@@ -223,10 +237,7 @@ class PlayerManager @Inject constructor(
     }
 
     private fun onSongChanged(song: SongEntity) {
-        scope.launch {
-            preferences.setLastSongUri(song.uri)
-            preferences.setLastPosition(0)
-        }
+        persistSessionAsync()
         paletteJob?.cancel()
         paletteJob = scope.launch {
             val cached = paletteCache.get(song.id)
@@ -315,9 +326,21 @@ class PlayerManager @Inject constructor(
         updateWidget(force = false)
     }
 
+    private fun updateWidgetProgressIfNeeded() {
+        if (!player.isPlaying) return
+        val now = System.currentTimeMillis()
+        if (now - lastWidgetProgressAt < 20_000) return
+        lastWidgetProgressAt = now
+        updateWidget()
+    }
+
     fun updateWidget(force: Boolean = false) {
         val song = _currentSong.value
         val colors = _palette.value
+        val duration = when {
+            _durationMs.value > 0 -> _durationMs.value
+            else -> song?.durationMs ?: 0L
+        }
         val snapshot = WidgetSnapshot(
             title = song?.title ?: "ParSound",
             artist = song?.artist ?: "Añade música a tu biblioteca",
@@ -325,23 +348,31 @@ class PlayerManager @Inject constructor(
             artworkPath = song?.artworkUri,
             accent = colors.accent,
             background = colors.backgroundStart,
-            songId = song?.id ?: 0L
+            songId = song?.id ?: 0L,
+            positionMs = if (song != null) player.currentPosition.coerceAtLeast(0L) else 0L,
+            durationMs = duration
         )
         WidgetStateStore.save(context, snapshot)
         ParSoundWidget.updateAll(context)
     }
 
-    fun setQueue(songs: List<SongEntity>, startIndex: Int = 0, autoPlay: Boolean = true) {
+    fun setQueue(
+        songs: List<SongEntity>,
+        startIndex: Int = 0,
+        autoPlay: Boolean = true,
+        shuffleOrder: Boolean = true
+    ) {
         if (songs.isEmpty()) return
         _error.value = null
         songsById = songs.associateBy { it.id }
         val index = startIndex.coerceIn(songs.indices)
-        val orderedSongs = if (shufflePreference && songs.size > 1) {
+        val useShuffle = shuffleOrder && shufflePreference
+        val orderedSongs = if (useShuffle && songs.size > 1) {
             listOf(songs[index]) + songs.filterIndexed { itemIndex, _ -> itemIndex != index }.shuffled()
         } else {
             songs
         }
-        val orderedIndex = if (shufflePreference && songs.size > 1) 0 else index
+        val orderedIndex = if (useShuffle && songs.size > 1) 0 else index
         val items = orderedSongs.map { it.toMediaItem() }
         val currentId = player.currentMediaItem?.mediaId
         val canCrossfade = autoPlay &&
@@ -355,12 +386,15 @@ class PlayerManager @Inject constructor(
             _queue.value = orderedSongs
             ensureService()
             syncFromPlayer()
+            persistSessionAsync()
             return
         }
         _queue.value = songs
         player.setMediaItems(items, index, 0L)
-        if (player.shuffleModeEnabled) player.shuffleModeEnabled = false
-        if (shufflePreference) player.shuffleModeEnabled = true
+        if (shuffleOrder) {
+            if (player.shuffleModeEnabled) player.shuffleModeEnabled = false
+            if (shufflePreference) player.shuffleModeEnabled = true
+        }
         if (autoPlay) {
             ensureService()
             player.play()
@@ -368,6 +402,7 @@ class PlayerManager @Inject constructor(
             player.pause()
         }
         syncFromPlayer()
+        persistSessionAsync()
     }
 
     fun playSong(song: SongEntity, list: List<SongEntity>) {
@@ -422,6 +457,7 @@ class PlayerManager @Inject constructor(
         songsById = songsById + (song.id to song)
         player.addMediaItem(song.toMediaItem())
         _queue.value = _queue.value + song
+        persistSessionAsync()
     }
 
     fun playNext(song: SongEntity) {
@@ -429,12 +465,14 @@ class PlayerManager @Inject constructor(
         val index = (player.currentMediaItemIndex + 1).coerceIn(0, player.mediaItemCount)
         player.addMediaItem(index, song.toMediaItem())
         syncQueue()
+        persistSessionAsync()
     }
 
     fun moveQueueItem(from: Int, to: Int) {
         if (from in 0 until player.mediaItemCount && to in 0 until player.mediaItemCount) {
             player.moveMediaItem(from, to)
             syncQueue()
+            persistSessionAsync()
         }
     }
 
@@ -442,16 +480,29 @@ class PlayerManager @Inject constructor(
         if (index in 0 until player.mediaItemCount) {
             player.removeMediaItem(index)
             syncQueue()
+            persistSessionAsync()
         }
     }
 
     fun clearQueue() {
+        clearingQueue = true
         player.pause()
         player.clearMediaItems()
         _queue.value = emptyList()
         _currentSong.value = null
         _positionMs.value = 0
         _durationMs.value = 0
+        _palette.value = PaletteColors.Default
+        lastWidgetSongId = -1L
+        lastWidgetPlaying = null
+        lastHistorySongId = -1L
+        persistedQueue = emptyList()
+        persistedIndex = 0
+        scope.launch {
+            preferences.clearSession()
+            clearingQueue = false
+        }
+        updateWidget(force = true)
     }
 
     fun toggleShuffle() {
@@ -534,39 +585,70 @@ class PlayerManager @Inject constructor(
             restoreAttempted = true
             return
         }
-        restoreAttempted = true
-        if (!preferences.resumeSession.first()) return
+        if (!preferences.resumeSession.first()) {
+            restoreAttempted = true
+            return
+        }
         val songs = repository.allSongsOnce()
+        // La biblioteca puede tardar en cargar: se reintenta cuando llegue.
         if (songs.isEmpty()) return
-        val lastUri = preferences.lastSongUri.first()
-        if (lastUri.isBlank()) return
-        val index = songs.indexOfFirst { it.uri == lastUri }
-        if (index < 0) return
-        val position = preferences.lastPosition.first()
-        setQueue(songs, index, autoPlay = false)
+        val saved = preferences.savedSession()
+        val byUri = songs.associateBy { it.uri }
+        val restored = saved.queue.mapNotNull { byUri[it] }
+        if (restored.isNotEmpty()) {
+            val index = saved.index.coerceIn(restored.indices)
+            setQueue(restored, index, autoPlay = false, shuffleOrder = false)
+        } else {
+            val index = songs.indexOfFirst { it.uri == saved.lastSongUri }
+            if (index < 0) {
+                restoreAttempted = true
+                return
+            }
+            setQueue(songs, index, autoPlay = false, shuffleOrder = false)
+        }
+        val position = saved.position
         if (position > 0) player.seekTo(position)
         _positionMs.value = position
+        restoreAttempted = true
+        persistSession(position)
+    }
+
+    /** Guarda cola, canción actual y posición. Seguro desde cualquier corrutina. */
+    suspend fun persistSession(positionMs: Long = player.currentPosition) {
+        if (clearingQueue) return
+        val song = _currentSong.value
+        val queueUris = buildList {
+            for (i in 0 until player.mediaItemCount) {
+                val uri = player.getMediaItemAt(i).localConfiguration?.uri?.toString()
+                if (!uri.isNullOrBlank()) add(uri)
+            }
+        }
+        if (song == null && queueUris.isEmpty()) return
+        val index = if (player.mediaItemCount > 0) player.currentMediaItemIndex else 0
+        if (queueUris != persistedQueue || index != persistedIndex) {
+            persistedQueue = queueUris
+            persistedIndex = index
+            preferences.saveSessionQueue(queueUris, index, song?.uri ?: "")
+        }
+        preferences.saveSessionPosition(positionMs)
+    }
+
+    fun persistSessionAsync(positionMs: Long = player.currentPosition) {
+        val position = positionMs.coerceAtLeast(0L)
+        scope.launch { persistSession(position) }
     }
 
     private fun persistProgressIfNeeded() {
         val now = System.currentTimeMillis()
         if (now - lastPersistAt < 10_000) return
         lastPersistAt = now
-        val song = _currentSong.value ?: return
-        val position = player.currentPosition
-        scope.launch {
-            preferences.setLastSongUri(song.uri)
-            preferences.setLastPosition(position)
-        }
+        if (_currentSong.value == null) return
+        persistSessionAsync()
     }
 
     fun pauseAndPersist() {
         player.pause()
-        val song = _currentSong.value ?: return
-        scope.launch {
-            preferences.setLastSongUri(song.uri)
-            preferences.setLastPosition(player.currentPosition)
-        }
+        persistSessionAsync()
     }
 
     private fun ensureService() {

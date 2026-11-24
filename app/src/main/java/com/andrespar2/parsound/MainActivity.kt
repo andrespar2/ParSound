@@ -126,6 +126,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onStop() {
         super.onStop()
+        playerManager.persistSessionAsync()
         playerManager.updateWidget()
     }
 

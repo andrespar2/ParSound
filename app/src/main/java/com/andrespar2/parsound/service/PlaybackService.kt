@@ -82,8 +82,9 @@ class PlaybackService : MediaSessionService() {
     }
 
     override fun onTaskRemoved(rootIntent: Intent?) {
-        if (!manager.player.isPlaying) {
-            stopSelf()
+        scope.launch {
+            manager.persistSession()
+            if (!manager.player.isPlaying) stopSelf()
         }
         super.onTaskRemoved(rootIntent)
     }

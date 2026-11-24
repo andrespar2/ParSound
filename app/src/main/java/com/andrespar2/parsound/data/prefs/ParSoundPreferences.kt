@@ -25,6 +25,13 @@ val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "pa
 
 data class FolderConfig(val uri: String, val name: String)
 
+data class SavedSession(
+    val queue: List<String> = emptyList(),
+    val index: Int = 0,
+    val position: Long = 0L,
+    val lastSongUri: String = ""
+)
+
 object ThemeMode {
     const val SYSTEM = 0
     const val LIGHT = 1
@@ -55,6 +62,8 @@ class ParSoundPreferences @Inject constructor(
         val FOLDERS = stringPreferencesKey("saf_folders")
         val LAST_SONG_URI = stringPreferencesKey("last_song_uri")
         val LAST_POSITION = longPreferencesKey("last_position")
+        val SESSION_QUEUE = stringPreferencesKey("session_queue")
+        val SESSION_INDEX = intPreferencesKey("session_index")
         val LAST_SCAN = longPreferencesKey("last_scan")
         val SHUFFLE_ENABLED = booleanPreferencesKey("shuffle_enabled")
         val REPEAT_MODE = intPreferencesKey("repeat_mode")
@@ -85,8 +94,6 @@ class ParSoundPreferences @Inject constructor(
     val eqPreset: Flow<Int> = data.map { it[Keys.EQ_PRESET] ?: -1 }
     val eqBands: Flow<String> = data.map { it[Keys.EQ_BANDS] ?: "" }
     val lastScan: Flow<Long> = data.map { it[Keys.LAST_SCAN] ?: 0L }
-    val lastSongUri: Flow<String> = data.map { it[Keys.LAST_SONG_URI] ?: "" }
-    val lastPosition: Flow<Long> = data.map { it[Keys.LAST_POSITION] ?: 0L }
     val showCoverBackground: Flow<Boolean> = data.map { it[Keys.SHOW_COVER_BG] ?: true }
 
     val folders: Flow<List<FolderConfig>> = data.map { parseFolders(it[Keys.FOLDERS] ?: "[]") }
@@ -126,8 +133,48 @@ class ParSoundPreferences @Inject constructor(
     suspend fun setEqPreset(value: Int) = edit { it[Keys.EQ_PRESET] = value }
     suspend fun setEqBands(value: String) = edit { it[Keys.EQ_BANDS] = value }
     suspend fun setLastScan(value: Long) = edit { it[Keys.LAST_SCAN] = value }
-    suspend fun setLastSongUri(value: String) = edit { it[Keys.LAST_SONG_URI] = value }
-    suspend fun setLastPosition(value: Long) = edit { it[Keys.LAST_POSITION] = value }
+
+    /** Guarda la cola y el índice actual; la posición se escribe aparte. */
+    suspend fun saveSessionQueue(queue: List<String>, index: Int, lastSongUri: String) {
+        context.dataStore.edit { prefs ->
+            prefs[Keys.SESSION_QUEUE] = JSONArray(queue).toString()
+            prefs[Keys.SESSION_INDEX] = index.coerceAtLeast(0)
+            prefs[Keys.LAST_SONG_URI] = lastSongUri
+        }
+    }
+
+    suspend fun saveSessionPosition(position: Long) {
+        context.dataStore.edit { prefs ->
+            prefs[Keys.LAST_POSITION] = position.coerceAtLeast(0L)
+        }
+    }
+
+    suspend fun clearSession() {
+        context.dataStore.edit { prefs ->
+            prefs[Keys.SESSION_QUEUE] = "[]"
+            prefs[Keys.SESSION_INDEX] = 0
+            prefs[Keys.LAST_SONG_URI] = ""
+            prefs[Keys.LAST_POSITION] = 0L
+        }
+    }
+
+    suspend fun savedSession(): SavedSession {
+        val prefs = data.first()
+        val queue = runCatching {
+            val array = JSONArray(prefs[Keys.SESSION_QUEUE] ?: "[]")
+            buildList {
+                for (i in 0 until array.length()) {
+                    array.optString(i).takeIf { it.isNotBlank() }?.let { add(it) }
+                }
+            }
+        }.getOrDefault(emptyList())
+        return SavedSession(
+            queue = queue,
+            index = (prefs[Keys.SESSION_INDEX] ?: 0).coerceAtLeast(0),
+            position = (prefs[Keys.LAST_POSITION] ?: 0L).coerceAtLeast(0L),
+            lastSongUri = prefs[Keys.LAST_SONG_URI] ?: ""
+        )
+    }
     suspend fun setShuffle(value: Boolean) = edit { it[Keys.SHUFFLE_ENABLED] = value }
     suspend fun setRepeatMode(value: Int) = edit { it[Keys.REPEAT_MODE] = value }
     suspend fun setShowCoverBackground(value: Boolean) = edit { it[Keys.SHOW_COVER_BG] = value }
