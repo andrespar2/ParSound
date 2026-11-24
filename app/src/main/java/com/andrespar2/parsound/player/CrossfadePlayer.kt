@@ -36,7 +36,15 @@ class CrossfadePlayer(context: Context) : SimpleBasePlayer(Looper.getMainLooper(
 
     private var activeEngine = 0
     private var incomingEngine = -1
-    private var items: List<MediaItem> = emptyList()
+
+    /**
+     * SimpleBasePlayer exige que cada elemento de la lista tenga un UID único.
+     * No sirve el mediaId: una misma canción puede estar repetida en la cola.
+     */
+    private data class PlaylistEntry(val mediaItem: MediaItem, val uid: String)
+
+    private var nextEntryId = 0L
+    private var items: List<PlaylistEntry> = emptyList()
     private var itemData: List<MediaItemData> = emptyList()
     private var currentIndex = 0
     private var playWhenReadyState = false
@@ -54,13 +62,13 @@ class CrossfadePlayer(context: Context) : SimpleBasePlayer(Looper.getMainLooper(
     private var fadeDurationMs = 0L
     private var fadeOutIndex = 0
     private var fadeInIndex = -1
-    private var preShuffleItems: List<MediaItem>? = null
+    private var preShuffleItems: List<PlaylistEntry>? = null
     private var pendingCrossfadeIndex = -1
     private var latestAudioSessionId = 0
     private var audioSessionListener: ((Int) -> Unit)? = null
     private var stateListener: (() -> Unit)? = null
     private var playlistSwapPending = false
-    private var swapPreviousItems: List<MediaItem> = emptyList()
+    private var swapPreviousItems: List<PlaylistEntry> = emptyList()
     private var swapPreviousIndex = 0
 
     private val audioManager =
@@ -284,12 +292,12 @@ class CrossfadePlayer(context: Context) : SimpleBasePlayer(Looper.getMainLooper(
         if (released || mediaItems.isEmpty()) return false
         if (fadeMillis <= 0 || !playWhenReadyState || !currentEngine().isPlaying) return false
         val targetIndex = startIndex.coerceIn(mediaItems.indices)
-        val currentId = items.getOrNull(currentIndex)?.mediaId
+        val currentId = items.getOrNull(currentIndex)?.mediaItem?.mediaId
         if (currentId != null && currentId == mediaItems[targetIndex].mediaId) return false
         if (crossfading) finishCrossfade()
         swapPreviousItems = items
         swapPreviousIndex = currentIndex
-        items = mediaItems
+        items = mediaItems.map { entry(it) }
         itemData = buildItemData(items)
         currentIndex = targetIndex
         pendingCrossfadeIndex = targetIndex
@@ -316,10 +324,16 @@ class CrossfadePlayer(context: Context) : SimpleBasePlayer(Looper.getMainLooper(
         }
     }
 
-    private fun buildItemData(list: List<MediaItem>): List<MediaItemData> =
-        list.map { item ->
+    private fun entry(item: MediaItem): PlaylistEntry =
+        PlaylistEntry(item, "ps-entry-${nextEntryId++}")
+
+    private fun entries(list: List<MediaItem>): List<PlaylistEntry> = list.map { entry(it) }
+
+    private fun buildItemData(list: List<PlaylistEntry>): List<MediaItemData> =
+        list.map { entry ->
+            val item = entry.mediaItem
             val durationMs = item.mediaMetadata.durationMs ?: 0L
-            MediaItemData.Builder(item.mediaId.ifBlank { item.toString() })
+            MediaItemData.Builder(entry.uid)
                 .setMediaItem(item)
                 .setMediaMetadata(item.mediaMetadata)
                 .setDurationUs(if (durationMs > 0) durationMs * 1000 else 0L)
@@ -455,9 +469,9 @@ class CrossfadePlayer(context: Context) : SimpleBasePlayer(Looper.getMainLooper(
         } else {
             val base = preShuffleItems
             if (base != null && base.size == items.size) {
-                val currentId = currentItem?.mediaId
+                val currentUid = currentItem?.uid
                 items = base
-                currentIndex = items.indexOfFirst { it.mediaId == currentId }.coerceAtLeast(0)
+                currentIndex = items.indexOfFirst { it.uid == currentUid }.coerceAtLeast(0)
             }
         }
         itemData = buildItemData(items)
@@ -490,7 +504,7 @@ class CrossfadePlayer(context: Context) : SimpleBasePlayer(Looper.getMainLooper(
         incomingEngine = -1
         preShuffleItems = null
         playlistSwapPending = false
-        items = mediaItems
+        items = entries(mediaItems)
         itemData = buildItemData(items)
         currentIndex = if (items.isEmpty()) 0 else startIndex.coerceIn(items.indices)
         lastError = null
@@ -512,9 +526,14 @@ class CrossfadePlayer(context: Context) : SimpleBasePlayer(Looper.getMainLooper(
 
     override fun handleAddMediaItems(index: Int, mediaItems: List<MediaItem>): ListenableFuture<*> {
         if (mediaItems.isEmpty()) return Futures.immediateVoidFuture()
+        val wasEmpty = items.isEmpty()
         val insertAt = index.coerceIn(0, items.size)
-        items = items.toMutableList().apply { addAll(insertAt, mediaItems) }
-        if (insertAt <= currentIndex) currentIndex += mediaItems.size
+        items = items.toMutableList().apply { addAll(insertAt, entries(mediaItems)) }
+        currentIndex = when {
+            wasEmpty -> 0
+            insertAt <= currentIndex -> currentIndex + mediaItems.size
+            else -> currentIndex
+        }.coerceIn(0, items.lastIndex)
         itemData = buildItemData(items)
         invalidateState()
         return Futures.immediateVoidFuture()
@@ -522,13 +541,13 @@ class CrossfadePlayer(context: Context) : SimpleBasePlayer(Looper.getMainLooper(
 
     override fun handleMoveMediaItems(fromIndex: Int, toIndex: Int, newIndex: Int): ListenableFuture<*> {
         if (items.isEmpty()) return Futures.immediateVoidFuture()
-        val currentId = items.getOrNull(currentIndex)?.mediaId
+        val currentUid = items.getOrNull(currentIndex)?.uid
         val mutable = items.toMutableList()
         val moved = mutable.subList(fromIndex, toIndex).toList()
         repeat(toIndex - fromIndex) { mutable.removeAt(fromIndex) }
         mutable.addAll(newIndex.coerceIn(0, mutable.size), moved)
         items = mutable
-        currentIndex = items.indexOfFirst { it.mediaId == currentId }.coerceAtLeast(0)
+        currentIndex = items.indexOfFirst { it.uid == currentUid }.coerceAtLeast(0)
         itemData = buildItemData(items)
         invalidateState()
         return Futures.immediateVoidFuture()
@@ -537,7 +556,7 @@ class CrossfadePlayer(context: Context) : SimpleBasePlayer(Looper.getMainLooper(
     override fun handleRemoveMediaItems(fromIndex: Int, toIndex: Int): ListenableFuture<*> {
         if (items.isEmpty()) return Futures.immediateVoidFuture()
         val removingCurrent = currentIndex in fromIndex until toIndex
-        val currentId = items.getOrNull(currentIndex)?.mediaId
+        val currentUid = items.getOrNull(currentIndex)?.uid
         items = items.toMutableList().apply { subList(fromIndex, toIndex).clear() }
         itemData = buildItemData(items)
         if (items.isEmpty()) {
@@ -549,7 +568,7 @@ class CrossfadePlayer(context: Context) : SimpleBasePlayer(Looper.getMainLooper(
             prepareActive()
             if (playWhenReadyState) currentEngine().play()
         } else {
-            currentIndex = items.indexOfFirst { it.mediaId == currentId }.coerceAtLeast(0)
+            currentIndex = items.indexOfFirst { it.uid == currentUid }.coerceAtLeast(0)
         }
         invalidateState()
         return Futures.immediateVoidFuture()
@@ -560,13 +579,13 @@ class CrossfadePlayer(context: Context) : SimpleBasePlayer(Looper.getMainLooper(
         toIndex: Int,
         mediaItems: List<MediaItem>
     ): ListenableFuture<*> {
-        val currentId = items.getOrNull(currentIndex)?.mediaId
+        val currentUid = items.getOrNull(currentIndex)?.uid
         val mutable = items.toMutableList()
         mutable.subList(fromIndex, toIndex).clear()
-        mutable.addAll(fromIndex, mediaItems)
+        mutable.addAll(fromIndex, entries(mediaItems))
         items = mutable
         itemData = buildItemData(items)
-        currentIndex = items.indexOfFirst { it.mediaId == currentId }.coerceAtLeast(0)
+        currentIndex = items.indexOfFirst { it.uid == currentUid }.coerceAtLeast(0)
         if (items.isEmpty()) playWhenReadyState = false
         invalidateState()
         return Futures.immediateVoidFuture()
@@ -593,7 +612,7 @@ class CrossfadePlayer(context: Context) : SimpleBasePlayer(Looper.getMainLooper(
     }
 
     private fun prepareActive(startPositionMs: Long = 0) {
-        val item = items.getOrNull(currentIndex) ?: return
+        val item = items.getOrNull(currentIndex)?.mediaItem ?: return
         val engine = currentEngine()
         engine.setMediaItem(item, startPositionMs.coerceAtLeast(0))
         engine.playbackParameters = playbackParametersState
@@ -642,7 +661,7 @@ class CrossfadePlayer(context: Context) : SimpleBasePlayer(Looper.getMainLooper(
     private fun beginCrossfade(targetIndex: Int) {
         if (crossfading || targetIndex !in items.indices) return
         debug("begin target=$targetIndex from=$currentIndex fade=$crossfadeMs")
-        val target = items[targetIndex]
+        val target = items[targetIndex].mediaItem
         val engine = engines[1 - activeEngine]
         pendingCrossfadeIndex = targetIndex
         incomingEngine = 1 - activeEngine
@@ -787,7 +806,7 @@ class CrossfadePlayer(context: Context) : SimpleBasePlayer(Looper.getMainLooper(
         val engine = currentEngine()
         engines.forEach { it.pause() }
         currentIndex = index
-        engine.setMediaItem(items[index], positionMs.coerceAtLeast(0))
+        engine.setMediaItem(items[index].mediaItem, positionMs.coerceAtLeast(0))
         engine.playbackParameters = playbackParametersState
         engine.volume = volumeState
         engine.prepare()
