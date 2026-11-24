@@ -41,11 +41,13 @@ class WidgetPreviewActivity : Activity() {
         }
         container = FrameLayout(this)
         root.addView(status)
+        val previewWidth = intent.getIntExtra("preview_width", 360)
+        val previewHeight = intent.getIntExtra("preview_height", 190)
         root.addView(
             container,
             LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                (240 * resources.displayMetrics.density).toInt()
+                (previewWidth * resources.displayMetrics.density).toInt(),
+                (previewHeight * resources.displayMetrics.density).toInt()
             )
         )
         setContentView(root)
@@ -54,16 +56,16 @@ class WidgetPreviewActivity : Activity() {
         val manager = AppWidgetManager.getInstance(this)
         val allowed = manager.bindAppWidgetIdIfAllowed(widgetId, provider)
         Log.i("ParSoundWidgetPreview", "bind allowed=$allowed id=$widgetId")
-        status.text = "Widget id=$widgetId bind=$allowed"
+        status.text = "Widget id=$widgetId bind=$allowed ${previewWidth}x$previewHeight"
         if (!allowed) {
             status.append("\nEjecuta: adb shell appwidget grantbind --package $packageName")
             return
         }
         val options = Bundle().apply {
-            putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 320)
-            putInt(AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH, 360)
-            putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 150)
-            putInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, 190)
+            putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, previewWidth - 20)
+            putInt(AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH, previewWidth)
+            putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, previewHeight - 20)
+            putInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, previewHeight)
         }
         manager.updateAppWidgetOptions(widgetId, options)
         attach()

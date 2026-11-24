@@ -16,8 +16,17 @@ data class WidgetSnapshot(
     val artworkPath: String? = null,
     val accent: Int = 0xFF8AB4F8.toInt(),
     val background: Int = 0xFF101114.toInt(),
-    val songId: Long = 0L
-)
+    val songId: Long = 0L,
+    val positionMs: Long = 0L,
+    val durationMs: Long = 0L
+) {
+    val progress: Float
+        get() = if (durationMs > 0) {
+            (positionMs.toFloat() / durationMs).coerceIn(0f, 1f)
+        } else {
+            0f
+        }
+}
 
 object WidgetStateStore {
     private const val PREFS = "parsound_widget_state"
@@ -31,6 +40,8 @@ object WidgetStateStore {
             .putInt("accent", snapshot.accent)
             .putInt("background", snapshot.background)
             .putLong("songId", snapshot.songId)
+            .putLong("position", snapshot.positionMs)
+            .putLong("duration", snapshot.durationMs)
             .apply()
     }
 
@@ -44,7 +55,9 @@ object WidgetStateStore {
             artworkPath = prefs.getString("artwork", null),
             accent = prefs.getInt("accent", 0xFF8AB4F8.toInt()),
             background = prefs.getInt("background", 0xFF101114.toInt()),
-            songId = prefs.getLong("songId", 0L)
+            songId = prefs.getLong("songId", 0L),
+            positionMs = prefs.getLong("position", 0L),
+            durationMs = prefs.getLong("duration", 0L)
         )
     }
 

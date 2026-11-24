@@ -1,6 +1,6 @@
 package com.andrespar2.parsound.widget
 
-import android.app.PendingIntent
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
@@ -13,6 +13,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
 import androidx.glance.GlanceId
 import androidx.glance.GlanceModifier
 import androidx.glance.GlanceTheme
@@ -37,20 +38,20 @@ import androidx.glance.layout.Box
 import androidx.glance.layout.Column
 import androidx.glance.layout.Row
 import androidx.glance.layout.Spacer
+import androidx.glance.layout.absolutePadding
 import androidx.glance.layout.fillMaxSize
 import androidx.glance.layout.fillMaxWidth
 import androidx.glance.layout.height
 import androidx.glance.layout.padding
 import androidx.glance.layout.size
 import androidx.glance.layout.width
-import androidx.glance.layout.width
 import androidx.glance.text.FontWeight
 import androidx.glance.text.Text
 import androidx.glance.text.TextStyle
 import androidx.glance.unit.ColorProvider
-import androidx.core.content.ContextCompat
+import androidx.media3.session.MediaController
+import androidx.media3.session.SessionToken
 import com.andrespar2.parsound.MainActivity
-import com.andrespar2.parsound.R
 import com.andrespar2.parsound.service.PlaybackService
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -88,200 +89,212 @@ class ParSoundWidget : GlanceAppWidget() {
     }
 }
 
+/**
+ * Widget pensado como la barra de reproducción de la app: portada, título,
+ * artista, controles y una fina línea de progreso, todo sobre el cristal
+ * coloreado por la paleta de la portada actual.
+ */
 @Composable
 private fun WidgetContent(snapshot: WidgetSnapshot, artwork: Bitmap?) {
     val measured = LocalSize.current
-    val width = if (measured.width.value > 0f) measured.width else 240.dp
-    val height = if (measured.height.value > 0f) measured.height else 150.dp
-    val size = DpSize(width, height)
-    val compact = size.width < 190.dp || size.height < 145.dp
-    val large = size.width >= 260.dp && size.height >= 220.dp
+    val width = measured.width.value.takeIf { it > 0f } ?: 250f
+    val height = measured.height.value.takeIf { it > 0f } ?: 70f
+    val size = DpSize(width.dp, height.dp)
+    val compact = height < 92f || width < 196f
+    val large = width >= 290f && height >= 140f
     val gradient = gradientBitmap(snapshot.background, snapshot.accent)
 
-    Box(
-        modifier = GlanceModifier.fillMaxSize()
-    ) {
+    Box(modifier = GlanceModifier.fillMaxSize()) {
         Box(
             modifier = GlanceModifier
                 .fillMaxSize()
-                .padding(horizontal = 2.dp, vertical = 5.dp)
+                .padding(horizontal = 2.dp, vertical = 4.dp)
                 .background(ImageProvider(gradient))
                 .cornerRadius(20.dp)
         ) {
-            if (large) {
-                LargeLayout(snapshot, artwork, size)
-            } else if (compact) {
-                CompactLayout(snapshot, artwork, size)
-            } else {
-                MediumLayout(snapshot, artwork, size)
+            when {
+                compact -> CompactBar(snapshot, artwork, size)
+                large -> LargeBar(snapshot, artwork, size)
+                else -> MediumBar(snapshot, artwork, size)
             }
         }
     }
 }
 
 @Composable
-private fun CompactLayout(snapshot: WidgetSnapshot, artwork: Bitmap?, size: DpSize) {
-    val wide = size.width >= 240.dp
-    val textWidth = (size.width - if (wide) 164.dp else 98.dp)
-        .coerceAtLeast(34.dp)
-        .coerceAtMost(400.dp)
-    Row(
-        modifier = GlanceModifier
-            .fillMaxSize()
-            .padding(horizontal = 9.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Cover(
-            artwork,
-            38,
-            GlanceModifier.clickable(actionStartActivity<MainActivity>())
-        )
-        Spacer(GlanceModifier.width(8.dp))
-        Column(
-            modifier = GlanceModifier
-                .width(textWidth)
-                .clickable(actionStartActivity<MainActivity>())
-        ) {
-            Text(
-                snapshot.title,
-                maxLines = 1,
-                style = TextStyle(
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = ColorProvider(Color.White)
-                )
-            )
-            if (size.width >= 158.dp) {
-                Text(
-                    snapshot.artist,
-                    maxLines = 1,
-                    style = TextStyle(
-                        fontSize = 9.sp,
-                        color = ColorProvider(Color(0xCCFFFFFF))
-                    )
-                )
-            }
-        }
-        Spacer(GlanceModifier.width(4.dp))
-        if (wide) {
-            WidgetControl(WidgetIcon.Previous, 92, 29, snapshot)
-            Spacer(GlanceModifier.width(4.dp))
-            WidgetControl(
-                if (snapshot.isPlaying) WidgetIcon.Pause else WidgetIcon.Play,
-                76,
-                34,
-                snapshot,
-                filled = true
-            )
-            Spacer(GlanceModifier.width(4.dp))
-            WidgetControl(WidgetIcon.Next, 93, 29, snapshot)
-        } else {
-            WidgetControl(
-                if (snapshot.isPlaying) WidgetIcon.Pause else WidgetIcon.Play,
-                76,
-                34,
-                snapshot,
-                filled = true
-            )
-        }
-    }
-}
-
-@Composable
-private fun MediumLayout(snapshot: WidgetSnapshot, artwork: Bitmap?, size: DpSize) {
-    val textWidth = (size.width - 92.dp).coerceAtLeast(48.dp).coerceAtMost(360.dp)
-    Column(
-        modifier = GlanceModifier
-            .fillMaxSize()
-            .padding(horizontal = 14.dp, vertical = 11.dp)
-    ) {
+private fun CompactBar(snapshot: WidgetSnapshot, artwork: Bitmap?, size: DpSize) {
+    val cover = (size.height.value - 18f).toInt()
+        .coerceIn(30, 54)
+        .coerceAtMost((size.width.value * 0.2f).toInt().coerceAtLeast(28))
+    val showArtist = size.width.value >= 205f
+    val showNext = size.width.value >= 175f
+    Column(modifier = GlanceModifier.fillMaxSize()) {
         Row(
-            modifier = GlanceModifier.fillMaxWidth(),
+            modifier = GlanceModifier
+                .fillMaxWidth()
+                .defaultWeight()
+                .padding(horizontal = 9.dp, vertical = 7.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Cover(
                 artwork,
-                60,
+                cover,
+                GlanceModifier.clickable(actionStartActivity<MainActivity>())
+            )
+            Spacer(GlanceModifier.width(8.dp))
+            Column(
+                modifier = GlanceModifier
+                    .defaultWeight()
+                    .clickable(actionStartActivity<MainActivity>())
+            ) {
+                Text(
+                    snapshot.title,
+                    maxLines = 1,
+                    style = TextStyle(
+                        fontSize = if (size.width.value >= 205f) 13.sp else 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = ColorProvider(Color.White)
+                    )
+                )
+                if (showArtist) {
+                    Text(
+                        snapshot.artist,
+                        maxLines = 1,
+                        style = TextStyle(
+                            fontSize = 9.sp,
+                            color = ColorProvider(Color(0xCCFFFFFF))
+                        )
+                    )
+                }
+            }
+            Spacer(GlanceModifier.width(4.dp))
+            if (snapshot.songId != 0L) {
+                WidgetControl(
+                    if (snapshot.isPlaying) WidgetIcon.Pause else WidgetIcon.Play,
+                    WidgetAction.Toggle,
+                    if (showNext) 32 else 30,
+                    snapshot,
+                    filled = true
+                )
+                if (showNext) {
+                    Spacer(GlanceModifier.width(2.dp))
+                    WidgetControl(WidgetIcon.Next, WidgetAction.Next, 28, snapshot)
+                }
+            }
+        }
+        ProgressLine(snapshot, size.width.value, inset = 10f)
+    }
+}
+
+@Composable
+private fun MediumBar(snapshot: WidgetSnapshot, artwork: Bitmap?, size: DpSize) {
+    val cover = (size.height.value - 30f).toInt()
+        .coerceIn(40, 76)
+        .coerceAtMost((size.width.value * 0.22f).toInt().coerceAtLeast(38))
+    val showArtist = size.width.value >= 210f
+    val showPrevious = size.width.value >= 330f
+    val showNext = size.width.value >= 240f
+    Column(modifier = GlanceModifier.fillMaxSize()) {
+        Row(
+            modifier = GlanceModifier
+                .fillMaxWidth()
+                .defaultWeight()
+                .padding(horizontal = 13.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Cover(
+                artwork,
+                cover,
                 GlanceModifier.clickable(actionStartActivity<MainActivity>())
             )
             Spacer(GlanceModifier.width(11.dp))
             Column(
                 modifier = GlanceModifier
-                    .width(textWidth)
+                    .defaultWeight()
                     .clickable(actionStartActivity<MainActivity>())
             ) {
-                Text(
-                    "PARSOUND",
-                    style = TextStyle(
-                        fontSize = 8.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = ColorProvider(Color(0x99FFFFFF))
-                    )
-                )
-                Spacer(GlanceModifier.height(2.dp))
                 Text(
                     snapshot.title,
                     maxLines = 1,
                     style = TextStyle(
-                        fontSize = 14.sp,
+                        fontSize = if (size.width.value >= 260f) 15.sp else 14.sp,
                         fontWeight = FontWeight.Bold,
                         color = ColorProvider(Color.White)
                     )
                 )
-                Spacer(GlanceModifier.height(1.dp))
-                Text(
-                    snapshot.artist,
-                    maxLines = 1,
-                    style = TextStyle(fontSize = 11.sp, color = ColorProvider(Color(0xBFFFFFFF)))
+                if (showArtist) {
+                    Spacer(GlanceModifier.height(2.dp))
+                    Text(
+                        snapshot.artist,
+                        maxLines = 1,
+                        style = TextStyle(
+                            fontSize = 11.sp,
+                            color = ColorProvider(Color(0xBFFFFFFF))
+                        )
+                    )
+                }
+                if (size.height.value >= 120f && snapshot.durationMs > 0) {
+                    Spacer(GlanceModifier.height(3.dp))
+                    Text(
+                        timeLabel(snapshot),
+                        maxLines = 1,
+                        style = TextStyle(
+                            fontSize = 10.sp,
+                            color = ColorProvider(Color(0x99FFFFFF))
+                        )
+                    )
+                }
+            }
+            Spacer(GlanceModifier.width(8.dp))
+            if (snapshot.songId != 0L) {
+                if (showPrevious) {
+                    WidgetControl(WidgetIcon.Previous, WidgetAction.Previous, 32, snapshot)
+                    Spacer(GlanceModifier.width(6.dp))
+                }
+                WidgetControl(
+                    if (snapshot.isPlaying) WidgetIcon.Pause else WidgetIcon.Play,
+                    WidgetAction.Toggle,
+                    40,
+                    snapshot,
+                    filled = true
                 )
+                if (showNext) {
+                    Spacer(GlanceModifier.width(6.dp))
+                    WidgetControl(WidgetIcon.Next, WidgetAction.Next, 32, snapshot)
+                }
             }
         }
-        Spacer(GlanceModifier.height(8.dp))
-        Row(
-            modifier = GlanceModifier.fillMaxWidth(),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            WidgetControl(WidgetIcon.Previous, 92, 34, snapshot)
-            Spacer(GlanceModifier.width(10.dp))
-            WidgetControl(
-                if (snapshot.isPlaying) WidgetIcon.Pause else WidgetIcon.Play,
-                76,
-                40,
-                snapshot,
-                filled = true
-            )
-            Spacer(GlanceModifier.width(10.dp))
-            WidgetControl(WidgetIcon.Next, 93, 34, snapshot)
-        }
+        ProgressLine(snapshot, size.width.value, inset = 13f)
     }
 }
 
 @Composable
-private fun LargeLayout(snapshot: WidgetSnapshot, artwork: Bitmap?, size: DpSize) {
-    val textWidth = (size.width - 144.dp).coerceAtLeast(60.dp).coerceAtMost(420.dp)
-    Column(
-        modifier = GlanceModifier
-            .fillMaxSize()
-            .padding(18.dp)
-    ) {
+private fun LargeBar(snapshot: WidgetSnapshot, artwork: Bitmap?, size: DpSize) {
+    val cover = (size.height.value - 84f).toInt()
+        .coerceIn(52, 112)
+        .coerceAtMost((size.width.value * 0.34f).toInt().coerceAtLeast(48))
+    Column(modifier = GlanceModifier.fillMaxSize()) {
         Row(
-            modifier = GlanceModifier.fillMaxWidth(),
+            modifier = GlanceModifier
+                .fillMaxWidth()
+                .defaultWeight()
+                .padding(start = 18.dp, end = 18.dp, top = 14.dp, bottom = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Cover(
                 artwork,
-                94,
+                cover,
                 GlanceModifier.clickable(actionStartActivity<MainActivity>())
             )
-            Spacer(GlanceModifier.width(14.dp))
+            Spacer(GlanceModifier.width(15.dp))
             Column(
                 modifier = GlanceModifier
-                    .width(textWidth)
+                    .defaultWeight()
                     .clickable(actionStartActivity<MainActivity>())
             ) {
                 Text(
                     "PARSOUND",
+                    maxLines = 1,
                     style = TextStyle(
                         fontSize = 9.sp,
                         fontWeight = FontWeight.Bold,
@@ -293,38 +306,93 @@ private fun LargeLayout(snapshot: WidgetSnapshot, artwork: Bitmap?, size: DpSize
                     snapshot.title,
                     maxLines = 2,
                     style = TextStyle(
-                        fontSize = 17.sp,
+                        fontSize = 18.sp,
                         fontWeight = FontWeight.Bold,
                         color = ColorProvider(Color.White)
                     )
                 )
-                Spacer(GlanceModifier.height(2.dp))
+                Spacer(GlanceModifier.height(3.dp))
                 Text(
                     snapshot.artist,
                     maxLines = 1,
-                    style = TextStyle(fontSize = 12.sp, color = ColorProvider(Color(0xBFFFFFFF)))
+                    style = TextStyle(
+                        fontSize = 12.sp,
+                        color = ColorProvider(Color(0xBFFFFFFF))
+                    )
                 )
+                if (snapshot.durationMs > 0) {
+                    Spacer(GlanceModifier.height(4.dp))
+                    Text(
+                        timeLabel(snapshot),
+                        maxLines = 1,
+                        style = TextStyle(
+                            fontSize = 11.sp,
+                            color = ColorProvider(Color(0x99FFFFFF))
+                        )
+                    )
+                }
             }
         }
-        Spacer(GlanceModifier.height(12.dp))
         Row(
-            modifier = GlanceModifier.fillMaxWidth(),
+            modifier = GlanceModifier
+                .fillMaxWidth()
+                .padding(bottom = 4.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            WidgetControl(WidgetIcon.Previous, 92, 40, snapshot)
-            Spacer(GlanceModifier.width(14.dp))
-            WidgetControl(
-                if (snapshot.isPlaying) WidgetIcon.Pause else WidgetIcon.Play,
-                76,
-                46,
-                snapshot,
-                filled = true
+            if (snapshot.songId != 0L) {
+                WidgetControl(WidgetIcon.Previous, WidgetAction.Previous, 38, snapshot)
+                Spacer(GlanceModifier.width(12.dp))
+                WidgetControl(
+                    if (snapshot.isPlaying) WidgetIcon.Pause else WidgetIcon.Play,
+                    WidgetAction.Toggle,
+                    46,
+                    snapshot,
+                    filled = true
+                )
+                Spacer(GlanceModifier.width(12.dp))
+                WidgetControl(WidgetIcon.Next, WidgetAction.Next, 38, snapshot)
+            }
+        }
+        ProgressLine(snapshot, size.width.value, inset = 16f)
+    }
+}
+
+@Composable
+private fun ProgressLine(snapshot: WidgetSnapshot, totalWidth: Float, inset: Float) {
+    val trackWidth = (totalWidth - inset * 2f - 8f).coerceAtLeast(0f)
+    val playedWidth = (trackWidth * snapshot.progress).coerceIn(0f, trackWidth)
+    Row(
+        modifier = GlanceModifier
+            .fillMaxWidth()
+            .absolutePadding(left = (inset + 4f).dp, top = 0.dp, right = (inset + 4f).dp, bottom = 6.dp)
+    ) {
+        Box(
+            modifier = GlanceModifier
+                .width(trackWidth.dp)
+                .height(2.5.dp)
+                .background(ColorProvider(Color(0x33FFFFFF)))
+                .cornerRadius(1.5.dp)
+        ) {
+            Spacer(
+                GlanceModifier
+                    .width(playedWidth.dp)
+                    .height(2.5.dp)
+                    .background(ColorProvider(Color(snapshot.accent)))
+                    .cornerRadius(1.5.dp)
             )
-            Spacer(GlanceModifier.width(14.dp))
-            WidgetControl(WidgetIcon.Next, 93, 40, snapshot)
         }
     }
+}
+
+private fun timeLabel(snapshot: WidgetSnapshot): String {
+    fun format(ms: Long): String {
+        val total = (ms / 1000).coerceAtLeast(0)
+        val minutes = total / 60
+        val seconds = total % 60
+        return "%d:%02d".format(minutes, seconds)
+    }
+    return "${format(snapshot.positionMs)} / ${format(snapshot.durationMs)}"
 }
 
 @Composable
@@ -336,13 +404,13 @@ private fun Cover(artwork: Bitmap?, dimension: Int, modifier: GlanceModifier = G
             contentScale = androidx.glance.layout.ContentScale.Crop,
             modifier = modifier
                 .size(dimension.dp)
-                .cornerRadius((dimension / 6).dp)
+                .cornerRadius((dimension / 5).dp)
         )
     } else {
         Box(
             modifier = modifier
                 .size(dimension.dp)
-                .cornerRadius((dimension / 6).dp)
+                .cornerRadius((dimension / 5).dp)
                 .background(ColorProvider(Color(0x33FFFFFF))),
             contentAlignment = Alignment.Center
         ) {
@@ -358,6 +426,8 @@ private fun Cover(artwork: Bitmap?, dimension: Int, modifier: GlanceModifier = G
 }
 
 private enum class WidgetIcon { Play, Pause, Previous, Next }
+
+private enum class WidgetAction { Toggle, Previous, Next }
 
 private val widgetIconCache = HashMap<String, Bitmap>()
 
@@ -414,7 +484,7 @@ private fun widgetIcon(kind: WidgetIcon, color: Int): Bitmap {
 @Composable
 private fun WidgetControl(
     icon: WidgetIcon,
-    action: Int,
+    action: WidgetAction,
     size: Int,
     snapshot: WidgetSnapshot,
     filled: Boolean = false
@@ -434,7 +504,7 @@ private fun WidgetControl(
             .background(ColorProvider(Color(background)))
             .clickable(
                 actionRunCallback<WidgetCommandAction>(
-                    actionParametersOf(WidgetCommandAction.actionKey to action.toString())
+                    actionParametersOf(WidgetCommandAction.actionKey to action.name)
                 )
             ),
         contentAlignment = Alignment.Center
@@ -459,22 +529,53 @@ class WidgetCommandAction : ActionCallback {
         glanceId: GlanceId,
         parameters: ActionParameters
     ) {
-        val raw = parameters[actionKey] ?: return
-        val action = raw.toIntOrNull() ?: return
+        val action = parameters[actionKey]?.let { value ->
+            runCatching { WidgetAction.valueOf(value) }.getOrNull()
+        } ?: return
         val command = when (action) {
-            76, 69 -> PlaybackService.ACTION_TOGGLE
-            92 -> PlaybackService.ACTION_PREVIOUS
-            93 -> PlaybackService.ACTION_NEXT
-            else -> return
+            WidgetAction.Toggle -> PlaybackService.ACTION_TOGGLE
+            WidgetAction.Previous -> PlaybackService.ACTION_PREVIOUS
+            WidgetAction.Next -> PlaybackService.ACTION_NEXT
         }
         val intent = Intent(context, PlaybackService::class.java).setAction(command)
-        runCatching { ContextCompat.startForegroundService(context, intent) }
+        val started = runCatching {
+            ContextCompat.startForegroundService(context, intent)
+        }.isSuccess
+        if (!started) {
+            // En Android 12+ el arranque en primer plano desde segundo plano puede
+            // estar limitado: se controla la sesión activa mediante MediaController.
+            runCatching { sendThroughSession(context, action) }
+        }
+    }
+
+    private fun sendThroughSession(context: Context, action: WidgetAction) {
+        val token = SessionToken(
+            context,
+            ComponentName(context, PlaybackService::class.java)
+        )
+        val future = MediaController.Builder(context.applicationContext, token).buildAsync()
+        future.addListener({
+            runCatching {
+                val controller = future.get()
+                try {
+                    when (action) {
+                        WidgetAction.Toggle ->
+                            if (controller.isPlaying) controller.pause() else controller.play()
+                        WidgetAction.Previous -> controller.seekToPreviousMediaItem()
+                        WidgetAction.Next -> controller.seekToNextMediaItem()
+                    }
+                } finally {
+                    controller.release()
+                }
+            }
+        }, ContextCompat.getMainExecutor(context))
     }
 
     companion object {
         val actionKey = ActionParameters.Key<String>("widget_action")
     }
 }
+
 private fun gradientBitmap(start: Int, accent: Int): Bitmap {
     val bitmap = Bitmap.createBitmap(192, 192, Bitmap.Config.ARGB_8888)
     val canvas = Canvas(bitmap)
